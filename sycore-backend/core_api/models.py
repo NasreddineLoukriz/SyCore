@@ -12,6 +12,11 @@ class User(AbstractUser):
     standards across the SAMAM and HOSN domains.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # --- أدوات تقييد الأدمن (SY-2139 Limits) ---
+    is_upload_banned = models.BooleanField(default=False) # إيقاف تام
+    max_upload_size_mb = models.IntegerField(default=10) # 10 ميجا لكل ملف
+    max_total_assets = models.IntegerField(default=100)  # أقصى عدد ملفات
 
     def __str__(self):
         return self.username
