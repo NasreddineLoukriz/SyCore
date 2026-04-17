@@ -31,6 +31,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -42,6 +43,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'core_api', 
     'graphene_django',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -72,7 +74,16 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'core.wsgi.application'
+# SYCORE SY-2139 Protocol: ASGI replacing WSGI for Real-Time support
+# WSGI_APPLICATION = 'core.wsgi.application'
+ASGI_APPLICATION = 'core.asgi.application'
+
+# Channel Layers Configuration (Redis/In-Memory)
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer", # For dev, switch to channels_redis in prod
+    }
+}
 
 
 # Database
