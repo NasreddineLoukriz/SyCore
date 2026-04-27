@@ -3,7 +3,7 @@ import graphql_jwt
 from graphene_django import DjangoObjectType
 from graphene_file_upload.scalars import Upload
 from core_api.models import UniversalResource, UniversalAsset, User
-from core_api.selectors import get_user_resources
+from core_api.selectors import get_user_resources, get_user_assets, get_resource_by_id, get_asset_by_id
 from core_api.services import (create_universal_resource, update_universal_resource, 
                                upload_universal_asset, create_user, admin_manage_user,
                                delete_universal_resource, delete_universal_asset,
@@ -49,6 +49,8 @@ class Query(graphene.ObjectType):
         UniversalResourceType,
         domain=graphene.String(required=False),
         resource_type=graphene.String(required=False),
+        # إضافة وسيط التاريخ هنا
+        updated_since=graphene.DateTime(required=False), 
         limit=graphene.Int(required=False),
         offset=graphene.Int(required=False)
     )
@@ -71,60 +73,44 @@ class Query(graphene.ObjectType):
         id=graphene.ID(required=True)
     )
 
-    # دالة جلب مورد واحد (تنفيذ بروتوكول العزل: المالك فقط أو الإدارة)
+    # دالة جلب مورد واحد
     def resolve_resource_by_id(self, info, id):
         user = info.context.user
-        if not user.is_authenticated:
-            raise Exception("Authentication required")
+        project_id = getattr(info.context, 'project_id', None)
         
-        try:
-            if user.is_superuser:
-                return UniversalResource.objects.get(id=id)
-            return UniversalResource.objects.get(id=id, owner=user)
-        except UniversalResource.DoesNotExist:
-            raise Exception("Resource not found or access denied")
+        if not user.is_authenticated or not project_id:
+            raise Exception("Authentication and Project ID are required")
+        
+        return get_resource_by_id(user, project_id, id)
 
-    # دالة جلب ملف واحد (تنفيذ بروتوكول العزل: المالك فقط أو الإدارة)
+    # دالة جلب ملف واحد
     def resolve_asset_by_id(self, info, id):
         user = info.context.user
-        if not user.is_authenticated:
-            raise Exception("Authentication required")
-            
-        try:
-            if user.is_superuser:
-                return UniversalAsset.objects.get(id=id)
-            return UniversalAsset.objects.get(id=id, owner=user)
-        except UniversalAsset.DoesNotExist:
-            raise Exception("Asset not found or access denied")
-    
-    # ---------------------------------------------------
-
-    # دالة جلب كل المستخدمين (مقفلة للمدراء فقط)
-    def resolve_all_users(self, info, limit=None, offset=None):
-        user = info.context.user
-        if not user.is_authenticated or not user.is_superuser:
-            raise Exception("Access Denied: Only administrators can view all users.")
-            
-        qs = User.objects.all().order_by('-date_joined')
+        project_id = getattr(info.context, 'project_id', None)
         
-        # تطبيق التقسيم (Pagination)
-        if offset is not None:
-            qs = qs[offset:]
-        if limit is not None:
-            qs = qs[:limit]
+        if not user.is_authenticated or not project_id:
+            raise Exception("Authentication and Project ID are required")
             
-        return qs
-
+        return get_asset_by_id(user, project_id, id)
+    
     # دالة جلب موارد المستخدم مع Pagination
-    def resolve_user_resources(self, info, domain=None, resource_type=None, limit=None, offset=None):
+    def resolve_user_resources(self, info, domain=None, resource_type=None, updated_since=None, limit=None, offset=None):
         user = info.context.user
-        if not user.is_authenticated:
+        project_id = getattr(info.context, 'project_id', None)
+        
+        if not user.is_authenticated or not project_id:
             return UniversalResource.objects.none()
             
-        qs = get_user_resources(user=user, domain=domain, resource_type=resource_type)
-        # الترتيب من الأحدث للأقدم دائماً في الـ Resources
-        qs = qs.order_by('-created_at')
+        qs = get_user_resources(
+            user=user, 
+            project_id=project_id,
+            domain=domain, 
+            resource_type=resource_type, 
+        )
         
+        if updated_since:
+            qs = qs.filter(updated_at__gte=updated_since)
+            
         # تطبيق التقسيم (Pagination)
         if offset is not None:
             qs = qs[offset:]
@@ -136,7 +122,9 @@ class Query(graphene.ObjectType):
     # دالة جلب ملفات المستخدم مع Pagination
     def resolve_user_assets(self, info, domain=None, limit=None, offset=None):
         user = info.context.user
-        if not user.is_authenticated:
+        project_id = getattr(info.context, 'project_id', None)
+        
+        if not user.is_authenticated or not project_id:
             return UniversalAsset.objects.none()
         
         qs = UniversalAsset.objects.filter(owner=user).order_by('-created_at')
@@ -156,18 +144,24 @@ class CreateResourceMutation(graphene.Mutation):
         domain = graphene.String(required=True)
         resource_type = graphene.String(required=True)
         data = graphene.JSONString(required=True)
+        security_clearance = graphene.String(required=True) # إضافة نوع التشفير
 
     resource = graphene.Field(UniversalResourceType)
 
-    def mutate(self, info, domain, resource_type, data):
+    def mutate(self, info, domain, resource_type, data, security_clearance):
         user = info.context.user
-        if not user.is_authenticated:
-            raise Exception("Authentication required")
+        project_id = getattr(info.context, 'project_id', None)
+        
+        if not user.is_authenticated or not project_id:
+            raise Exception("Authentication and Project ID required")
+            
         resource = create_universal_resource(
             user=user,
+            project_id=project_id,
             domain=domain,
             resource_type=resource_type,
-            data=data
+            data=data,
+            security_clearance=security_clearance
         )
         return CreateResourceMutation(resource=resource)
 
@@ -198,11 +192,14 @@ class UploadAssetMutation(graphene.Mutation):
 
     def mutate(self, info, domain, file):
         user = info.context.user
-        if not user.is_authenticated:
-            raise Exception("Authentication required")
+        project_id = getattr(info.context, 'project_id', None)
+        
+        if not user.is_authenticated or not project_id:
+            raise Exception("Authentication and Project ID required")
+            
         asset = upload_universal_asset(
             user=user,
-            domain=domain,
+            project_id=project_id,
             file_obj=file
         )
         return UploadAssetMutation(asset=asset)

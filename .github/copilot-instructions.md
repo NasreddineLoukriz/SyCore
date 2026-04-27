@@ -1,22 +1,23 @@
-# SYCORE Core-API Custom Instructions (v2.0)
+# SYCORE Core-API Custom Instructions (v3.0 - Zero-Trust BaaS)
 
 ## 1. High-Level Project Summary
-- **Identity:** SYCORE Framework (Powered by Sa'ei al-Yaqeen SY-2139 Algorithm).
-- **Core Principle:** A Unified Standard Backend (Infrastructure-as-a-Service) that acts as a single source of truth for diverse domains: SAMAM (Business Management) and HOSN (Sovereign Family Cloud).
-- **Goal:** Compete with Appwrite by providing a zero-complexity backend using a Generic Resource-Based architecture.
+- **Identity:** SYCORE Framework (Powered by Sa'ei al-Yaqeen SY-2139 Protocol).
+- **Core Principle:** A "Smart SDK, Dumb Server" Backend-as-a-Service (BaaS). The backend is a generic, highly secure vault enforcing a compound identity (`project_id` + `domain_name` + `security_clearance`).
+- **Goal:** Compete with Appwrite/Firebase by providing zero-complexity generic storage where Data Privacy policies (E2EE vs. PLAIN) are strictly dictated by the SDK and enforced immutably by the backend.
 
 ## 2. Tech Stack Requirements
 - **Backend:** Django 6.0.4 (Strictly).
 - **API Layer:** GraphQL via graphene-django 3.2.3.
-- **Security:** X25519 Encryption standards for HOSN domain (Sovereign Privacy).
+- **Security:** X25519 Encryption for Client-Side E2EE. Backend enforces "Policy Immutability Gate".
 - **Frontend Compatibility:** Flutter (graphql_flutter).
 
 ## 3. Mandatory Architectural Pillars (THE SY-2139 PROTOCOL)
-- **Universal Schema (Database):** CRITICAL: Never create separate tables for business entities. Use the `UniversalResource` model with a `JSONField` for all dynamic data.
-- **Universal Storage (Files):** Treat file uploads as generic resources using a single `UniversalAsset` model. Like JSON, HOSN domain files are End-to-End Encrypted (E2EE) blobs.
+- **Universal Schema (Database):** CRITICAL: Never create separate tables for business entities. Use the `UniversalResource` model with a `JSONField` for all dynamic data. Data MUST be scoped to a `project_id` (Multi-Tenancy) and `owner` (User).
+- **Policy Immutability Gate (Trust on First Use):** The backend does NOT hardcode domain names (like HOSN or SAMAM). When a domain is requested via the SDK for the first time, the backend locks it to the requested `security_clearance` (`E2EE` or `PLAIN`). Future mismatches trigger a Data Poisoning Exception.
+- **Universal Storage (Files):** Treat file uploads as generic resources using a single `UniversalAsset` model, enforcing the exact same policy immutability as standard data resources.
 - **Unified Auth:** Use Token-based authentication (e.g., SimpleJWT). Every operation (Read, Write, Upload, WebSocket) must strictly be scoped to `request.user`. Data leakage is a critical failure.
 - **Real-Time Synergy:** Emulate Appwrite's real-time capabilities using GraphQL Subscriptions (via Django Channels). Emit events on resource creation/update/deletion.
-- **Zero-Knowledge Privacy:** If the resource/asset belongs to the HOSN domain, treat it as E2EE by the client using X25519. The backend MUST NOT attempt to parse or modify encrypted payloads.
+- **Zero-Knowledge Privacy (E2EE):** If the clearance is requested as `E2EE` by the SDK, the payload is an encrypted blob (Blind Storage). The backend MUST NOT attempt to parse, search, or modify E2EE payloads. `PLAIN` payloads are stored as searchable JSONB.
 
 ## 4. Coding & Logic Standards
 - **Clean Architecture:** Move business logic to services.py (for writes) or selectors.py (for reads). Keep schema.py for definition only.

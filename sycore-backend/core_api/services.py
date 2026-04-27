@@ -1,10 +1,9 @@
 from typing import Dict, Any
-from core_api.models import UniversalResource, User
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
-from .models import User, UniversalAsset
+from .models import User, UniversalResource, UniversalAsset, DomainPolicy
 
 def notify_user_realtime(user_id, event_type, payload):
     """ إرسال الإشعار الفوري للمستخدم عبر قنوات الاتصال الخاصة به فقط """
@@ -18,8 +17,37 @@ def notify_user_realtime(user_id, event_type, payload):
             }
         )
 
-def create_universal_resource(*, user: User, domain: str, resource_type: str, data: Dict[str, Any]) -> UniversalResource:
+# ----------------- الإضافة الجوهرية (البوابة الأمنية) -----------------
+def enforce_policy_gate(project_id: str, domain_name: str, requested_clearance: str):
+    """
+    SY-2139 Protocol Component: Policy Immutability Gate.
+    Trust on First Use: يقفل الدومين على التشفير المطلوب أول مرة، ويرفض أي محاولة لتغييره لاحقاً.
+    """
+    # البحث عن سياسة هذا الدومين أو إنشائها إن لم تكن موجودة
+    policy, created = DomainPolicy.objects.get_or_create(
+        project_id=project_id,
+        name=domain_name,
+        defaults={'security_clearance': requested_clearance}
+    )
+    
+    # إذا كانت السياسة موجودة مسبقاً، نتحقق من أن التشفير المرسل يطابق التشفير المحفوظ
+    if not created and policy.security_clearance != requested_clearance:
+        raise PermissionDenied(
+            f"[SY-2139 Data Poisoning Alert] Domain '{domain_name}' is locked to "
+            f"'{policy.security_clearance}'. Cannot accept '{requested_clearance}' data."
+        )
+# ----------------------------------------------------------------------
+
+
+# --- لاحظ تمرير project_id و security_clearance ---
+def create_universal_resource(*, project_id: str, user: User, domain: str, security_clearance: str, resource_type: str, data: Dict[str, Any]) -> UniversalResource:
+    
+    # 1. تفعيل حارس البوابة قبل إنشاء أي شيء
+    enforce_policy_gate(project_id, domain, security_clearance)
+
+    # 2. إنشاء البيانات مع ربطها بالمشروع
     resource = UniversalResource(
+        project_id=project_id,
         owner=user,
         domain=domain,
         resource_type=resource_type,
@@ -28,9 +56,10 @@ def create_universal_resource(*, user: User, domain: str, resource_type: str, da
     resource.full_clean()
     resource.save()
     
-    # 🔴 هنا يحدث السحر: بث الإشعار الفوري بعد الحفظ مباشرة!
+    # 3. بث الإشعار الفوري
     notify_user_realtime(user.id, 'resource.created', {
         'id': str(resource.id),
+        'project_id': resource.project_id,
         'domain': resource.domain,
         'type': resource.resource_type,
         'data': resource.data
@@ -38,24 +67,38 @@ def create_universal_resource(*, user: User, domain: str, resource_type: str, da
     
     return resource
 
-def update_universal_resource(*, user: User, resource_id: str, data: Dict[str, Any]) -> UniversalResource:
-    resource = UniversalResource.objects.get(id=resource_id, owner=user)
-    resource.data = data
+def update_universal_resource(*, project_id: str, user: User, resource_id: str, domain: str = None, security_clearance: str = None, data: Dict[str, Any] = None) -> UniversalResource:
+    # 1. جلب المورد مع التأكد من المشروع والمالك
+    resource = get_object_or_404(UniversalResource, id=resource_id, owner=user, project_id=project_id)
+    
+    # 2. إذا أراد المطور تغيير النطاق، يجب التحقق من البوابة الأمنية
+    if domain is not None:
+        if security_clearance is None:
+            raise Exception("عند تحديث الدومين، يجب تمرير نوع الحماية security_clearance!")
+        # تفعيل حارس البوابة على الدومين الجديد (أو الحالي إذا اختلفت السياسة خطأً)
+        enforce_policy_gate(project_id, domain, security_clearance)
+        resource.domain = domain
+    
+    # 3. تحديث البيانات (الـ JSON Payload)
+    if data is not None:
+        resource.data = data
+        
     resource.full_clean()
     resource.save()
     
     notify_user_realtime(user.id, 'resource.updated', {
         'id': str(resource.id),
+        'domain': resource.domain,
         'data': resource.data
     })
     
     return resource
 
-def delete_universal_resource(user, resource_id: str) -> bool:
+def delete_universal_resource(user, project_id: str, resource_id: str) -> bool:
     """
     حذف المورد مع مراعاة العزل البيئي (Tenancy Isolation).
     """
-    resource = get_object_or_404(UniversalResource, id=resource_id)
+    resource = get_object_or_404(UniversalResource, id=resource_id, project_id=project_id)
     
     # التحقق من الصلاحيات: المالك حصراً أو مدير النظام
     if resource.owner != user and not user.is_superuser:
@@ -64,7 +107,9 @@ def delete_universal_resource(user, resource_id: str) -> bool:
     resource.delete()
     return True
 
-def upload_universal_asset(*, user: User, domain: str, file_obj: Any) -> Any:
+# --- قسم الملفات (Assets) ---
+
+def upload_universal_asset(*, project_id: str, user: User, domain: str, security_clearance: str, file_obj: Any) -> Any:
     # 1. التحقق من الحظر الشامل
     if user.is_upload_banned:
         raise Exception("تم إيقاف صلاحية رفع الملفات لحسابك من قبل النظام.")
@@ -75,13 +120,15 @@ def upload_universal_asset(*, user: User, domain: str, file_obj: Any) -> Any:
         raise Exception(f"حجم الملف يتجاوز الحد المسموح لك ({user.max_upload_size_mb} MB).")
     
     # 3. التحقق من الحد الأقصى لعدد الملفات
-    current_asset_count = UniversalAsset.objects.filter(owner=user).count()
+    current_asset_count = UniversalAsset.objects.filter(owner=user, project_id=project_id).count()
     if current_asset_count >= user.max_total_assets:
         raise Exception(f"لقد وصلت للحد الأقصى المسموح لك من الملفات ({user.max_total_assets}).")
 
-    from core_api.models import UniversalAsset
-    
+    # 4. 🔴 تفعيل حارس السياسة للملفات أيضاً! (الملفات بيانات بالنهاية)
+    enforce_policy_gate(project_id, domain, security_clearance)
+
     asset = UniversalAsset(
+        project_id=project_id,
         owner=user,
         domain=domain,
         file=file_obj,
@@ -93,6 +140,7 @@ def upload_universal_asset(*, user: User, domain: str, file_obj: Any) -> Any:
     
     notify_user_realtime(user.id, 'asset.uploaded', {
         'id': str(asset.id),
+        'project_id': asset.project_id,
         'domain': asset.domain,
         'mimetype': asset.mimetype,
         'size': asset.size
@@ -100,16 +148,20 @@ def upload_universal_asset(*, user: User, domain: str, file_obj: Any) -> Any:
     
     return asset
 
-def update_universal_asset(*, user: User, asset_id: str, domain: str = None, file_obj: Any = None) -> Any:
+def update_universal_asset(*, project_id: str, user: User, asset_id: str, domain: str = None, security_clearance: str = None, file_obj: Any = None) -> Any:
     """ تحديث بيانات أو محتوى الملف مع الاحتفاظ بنفس المُعرّف ID """
-    asset = get_object_or_404(UniversalAsset, id=asset_id)
+    asset = get_object_or_404(UniversalAsset, id=asset_id, project_id=project_id)
     
     # 1. التحقق من الصلاحيات: المالك حصراً
     if asset.owner != user and not user.is_superuser:
         raise PermissionDenied("You do not have permission to update this asset.")
         
-    # 2. تحديث النطاق إذا تم تمريره
+    # 2. تحديث النطاق (ومعه سياسة التشفير إن لزم الأمر)
     if domain is not None:
+        # إذا حاول تغيير الـ Domain إلى دومين جديد أو موجود يجب تطبيق السياسة
+        if security_clearance is None:
+            raise Exception("عند تحديث الدومين لملف، يجب تمرير security_clearance لهذا الدومين!")
+        enforce_policy_gate(project_id, domain, security_clearance)
         asset.domain = domain
         
     # 3. تحديث الملف الفعلي إذا تم رفع ملف جديد
@@ -144,11 +196,11 @@ def update_universal_asset(*, user: User, asset_id: str, domain: str = None, fil
     
     return asset
 
-def delete_universal_asset(user, asset_id: str) -> bool:
+def delete_universal_asset(user, project_id: str, asset_id: str) -> bool:
     """
     حذف الملف من قاعدة البيانات ومن وحدة التخزين (Storage).
     """
-    asset = get_object_or_404(UniversalAsset, id=asset_id)
+    asset = get_object_or_404(UniversalAsset, id=asset_id, project_id=project_id)
     
     # التحقق من الصلاحيات: المالك حصراً أو مدير النظام
     if asset.owner != user and not user.is_superuser:
@@ -160,7 +212,7 @@ def delete_universal_asset(user, asset_id: str) -> bool:
         
     asset.delete()
     
-    # إشعار بعد الحذف (اختياري لكنه مفيد جداً للـ Frontend)
+    # إشعار بعد الحذف
     notify_user_realtime(user.id, 'asset.deleted', {
         'id': asset_id
     })
