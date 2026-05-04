@@ -2,7 +2,7 @@ import graphene
 import graphql_jwt
 from graphene_django import DjangoObjectType
 from graphene_file_upload.scalars import Upload
-from core_api.models import UniversalResource, UniversalAsset, User
+from core_api.models import UniversalResource, UniversalAsset, User, UserPublicKey
 from core_api.selectors import get_user_resources, get_user_assets, get_resource_by_id, get_asset_by_id
 from core_api.services import (create_universal_resource, update_universal_resource, 
                                upload_universal_asset, create_user, admin_manage_user,
@@ -35,6 +35,11 @@ class UserType(DjangoObjectType):
             'is_active', 'is_staff', 'is_superuser',
             'is_upload_banned', 'max_upload_size_mb', 'max_total_assets'
         )
+
+class UserPublicKeyType(DjangoObjectType):
+    class Meta:
+        model = UserPublicKey
+        fields = ('ecc_public_key', 'ed25519_public_key', 'updated_at')
 
 class Query(graphene.ObjectType):
     # قائمة المستخدمين مع Pagination
@@ -78,10 +83,25 @@ class Query(graphene.ObjectType):
         user = info.context.user
         project_id = getattr(info.context, 'project_id', None)
         
-        if not user.is_authenticated or not project_id:
-            raise Exception("Authentication and Project ID are required")
+        if not project_id:
+            raise Exception("Project ID is required")
         
-        return get_resource_by_id(user, project_id, id)
+        # جلب المورد أولاً للتحقق من نوعه قبل رفض الطلب
+        resource = get_resource_by_id(user if user.is_authenticated else None, project_id, id)
+        
+        # إذا كان المورد ينتمي لدومين سياسته JAHR، نسمح للجميع بقراءته
+        # نفترض هنا أن إما تمرر security_clearance مع المورد أو DomainPolicy
+        # هنا طريقة سريعة: إذا لم يكن مسجلاً، تأكد أن سياسته عامة
+        from core_api.models import DomainPolicy
+        try:
+            policy = DomainPolicy.objects.get(project_id=project_id, name=resource.domain)
+            if policy.security_clearance != 'JAHR' and not user.is_authenticated:
+                raise Exception("Authentication required for non-JAHR resources")
+        except DomainPolicy.DoesNotExist:
+            if not user.is_authenticated:
+                 raise Exception("Authentication required")
+
+        return resource
 
     # دالة جلب ملف واحد
     def resolve_asset_by_id(self, info, id):
@@ -98,20 +118,35 @@ class Query(graphene.ObjectType):
         user = info.context.user
         project_id = getattr(info.context, 'project_id', None)
         
-        if not user.is_authenticated or not project_id:
+        if not project_id:
+            raise Exception("Project ID is required")
+            
+        # التحقق من سياسة الدومين إذا تم تمريره
+        is_jahr_request = False
+        from core_api.models import DomainPolicy
+        if domain:
+            policy = DomainPolicy.objects.filter(project_id=project_id, name=domain).first()
+            if policy and policy.security_clearance == 'JAHR':
+                is_jahr_request = True
+
+        # إذا لم يكن مسجلاً وليس طلب JAHR نرفض!
+        if not user.is_authenticated and not is_jahr_request:
             return UniversalResource.objects.none()
             
-        qs = get_user_resources(
-            user=user, 
-            project_id=project_id,
-            domain=domain, 
-            resource_type=resource_type, 
-        )
+        # إذا كان الطلب JAHR نجلب الموارد لهذا الدومين بغض النظر عن المالك
+        if is_jahr_request:
+             qs = UniversalResource.objects.filter(project_id=project_id, domain=domain)
+        else:
+             qs = get_user_resources(
+                user=user, 
+                project_id=project_id,
+                domain=domain, 
+                resource_type=resource_type, 
+             )
         
         if updated_since:
             qs = qs.filter(updated_at__gte=updated_since)
             
-        # تطبيق التقسيم (Pagination)
         if offset is not None:
             qs = qs[offset:]
         if limit is not None:
@@ -138,6 +173,20 @@ class Query(graphene.ObjectType):
             qs = qs[:limit]
             
         return qs
+
+    user_public_key = graphene.Field(
+        UserPublicKeyType, 
+        user_id=graphene.ID(required=True)
+    )
+
+    def resolve_user_public_key(self, info, user_id):
+        # السماح لأي شخص مسجل بالبحث عن المفتاح العام للآخرين
+        if not info.context.user.is_authenticated:
+            raise Exception("Authentication required")
+        try:
+            return UserPublicKey.objects.get(user_id=user_id)
+        except UserPublicKey.DoesNotExist:
+            raise Exception("Public key not found for this user")
 
 class CreateResourceMutation(graphene.Mutation):
     class Arguments:
@@ -309,6 +358,28 @@ class DeleteAssetMutation(graphene.Mutation):
         success = delete_universal_asset(user=user, asset_id=id)
         return DeleteAssetMutation(success=success)
 
+class UploadPublicKeyMutation(graphene.Mutation):
+    class Arguments:
+        ecc_public_key = graphene.String(required=True)
+        ed25519_public_key = graphene.String(required=False)
+
+    success = graphene.Boolean()
+
+    def mutate(self, info, ecc_public_key, ed25519_public_key=None):
+        user = info.context.user
+        if not user.is_authenticated:
+            raise Exception("Authentication required")
+            
+        # تحديث أو إنشاء المفتاح
+        UserPublicKey.objects.update_or_create(
+            user=user,
+            defaults={
+                'ecc_public_key': ecc_public_key,
+                'ed25519_public_key': ed25519_public_key
+            }
+        )
+        return UploadPublicKeyMutation(success=True)
+
 class Mutation(graphene.ObjectType):
     # SY-2139 Protocol: Token-based Authentication
     token_auth = graphql_jwt.ObtainJSONWebToken.Field()
@@ -323,5 +394,8 @@ class Mutation(graphene.ObjectType):
     delete_resource = DeleteResourceMutation.Field()
     delete_asset = DeleteAssetMutation.Field()
     update_asset = UpdateAssetMutation.Field()
+    
+    # 👈 الإضافة الخاصة برفع المفاتيح العامة للسيرفر
+    upload_public_key = UploadPublicKeyMutation.Field()
 
 schema = graphene.Schema(query=Query, mutation=Mutation)

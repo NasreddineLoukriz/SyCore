@@ -36,3 +36,11 @@
 - **`sycore-cli/`**: Command-line interface for deploying, migrating, and managing the SYCORE environment.
 - **`development-docker/`**: Containerization setup (docker-compose) for easy deployment of the entire stack (PostgreSQL, Redis, Django) mimicking Appwrite's zero-complexity setup.
 - **`docs/`**: Developer documentation, guiding the usage of the SY-2139 protocol and the framework features.
+
+## 7. Knowledge Graph Reference
+When questions are about architecture/structure:
+- Primary source: `/graphify-out/graph.json` (786 nodes, 1,048 edges)
+- Quick reference: `/graphify-out/GRAPH_REPORT.md` (God nodes, communities)
+- Visualization: `/graphify-out/graph.html`
+
+Query pattern: For any "how do X and Y relate?" use graph instead of file searches.

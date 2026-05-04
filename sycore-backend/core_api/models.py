@@ -17,6 +17,20 @@ class User(AbstractUser):
     def __str__(self):
         return self.username
 
+class UserPublicKey(models.Model):
+    """
+    جدول لحفظ المفاتيح العامة (Public Keys) للمستخدمين بغرض بروتوكول SY-2139.
+    يتم تخزينها بتشفير Base64.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='public_key')
+    ecc_public_key = models.TextField(help_text="المفتاح العام للتبادل ECC (HOSN/SAMAM)")
+    ed25519_public_key = models.TextField(help_text="المفتاح العام للتوقيع (JAHR) - اختياري", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Public Keys for {self.user.username}"
+
 class DomainPolicy(models.Model):
     """
     Policy Immutability Gate (Trust on First Use).

@@ -5,6 +5,7 @@ from asgiref.sync import sync_to_async
 from django.conf import settings
 from jwt import decode, ExpiredSignatureError, InvalidTokenError
 from core_api.models import User
+from django.utils.deprecation import MiddlewareMixin
 
 @sync_to_async
 def get_user_from_jwt(token):
@@ -34,3 +35,15 @@ class TokenAuthMiddleware(BaseMiddleware):
             scope['user'] = AnonymousUser()
 
         return await super().__call__(scope, receive, send)
+
+class ProjectIDMiddleware(MiddlewareMixin):
+    """
+    Middleware to extract X-Sycore-Project-Id from request headers
+    and attach it to the request object for multi-tenancy isolation.
+    """
+    def process_request(self, request):
+        project_id = request.headers.get('X-Sycore-Project-Id')
+        if project_id:
+            request.project_id = project_id
+        else:
+            request.project_id = None

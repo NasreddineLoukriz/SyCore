@@ -2,3 +2,23 @@ sycore-env-linux/
 sycore-env/__pycache__/
 *.pyc
 .env
+
+# Python / Django
+__pycache__/
+db.sqlite3
+media/
+static/
+
+# Graphify / Custom Cache
+graphify-out/
+
+# Dart / Flutter SDK
+sycore-sdk/dart_sycore_sdk/.dart_tool/
+sycore-sdk/dart_sycore_sdk/build/
+sycore-sdk/dart_sycore_sdk/.pub-cache/
+sycore-sdk/dart_sycore_sdk/pubspec.lock
+sycore-sdk/dart_sycore_sdk/.packages
+
+# VS Code / IDE
+.vscode/
+.idea/

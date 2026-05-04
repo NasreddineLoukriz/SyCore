@@ -5,12 +5,12 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 from .models import User, UniversalResource, UniversalAsset, DomainPolicy
 
-def notify_user_realtime(user_id, event_type, payload):
+def notify_user_realtime(user_id, project_id, event_type, payload):
     """ إرسال الإشعار الفوري للمستخدم عبر قنوات الاتصال الخاصة به فقط """
     channel_layer = get_channel_layer()
     if channel_layer:
         async_to_sync(channel_layer.group_send)(
-            f'user_{user_id}',
+            f'user_{user_id}_project_{project_id}',
             {
                 'type': 'resource_event',
                 'payload': {'event': event_type, 'data': payload}
@@ -57,7 +57,7 @@ def create_universal_resource(*, project_id: str, user: User, domain: str, secur
     resource.save()
     
     # 3. بث الإشعار الفوري
-    notify_user_realtime(user.id, 'resource.created', {
+    notify_user_realtime(user.id, project_id, 'resource.created', {
         'id': str(resource.id),
         'project_id': resource.project_id,
         'domain': resource.domain,
@@ -86,7 +86,7 @@ def update_universal_resource(*, project_id: str, user: User, resource_id: str, 
     resource.full_clean()
     resource.save()
     
-    notify_user_realtime(user.id, 'resource.updated', {
+    notify_user_realtime(user.id, project_id, 'resource.updated', {
         'id': str(resource.id),
         'domain': resource.domain,
         'data': resource.data
@@ -138,7 +138,7 @@ def upload_universal_asset(*, project_id: str, user: User, domain: str, security
     asset.full_clean()
     asset.save()
     
-    notify_user_realtime(user.id, 'asset.uploaded', {
+    notify_user_realtime(user.id, project_id, 'asset.uploaded', {
         'id': str(asset.id),
         'project_id': asset.project_id,
         'domain': asset.domain,
@@ -187,7 +187,7 @@ def update_universal_asset(*, project_id: str, user: User, asset_id: str, domain
     asset.save()
     
     # الإشعار المباشر عبر الويب سوكيت
-    notify_user_realtime(user.id, 'asset.updated', {
+    notify_user_realtime(user.id, project_id, 'asset.updated', {
         'id': str(asset.id),
         'domain': asset.domain,
         'mimetype': asset.mimetype,
@@ -213,7 +213,7 @@ def delete_universal_asset(user, project_id: str, asset_id: str) -> bool:
     asset.delete()
     
     # إشعار بعد الحذف
-    notify_user_realtime(user.id, 'asset.deleted', {
+    notify_user_realtime(user.id, project_id, 'asset.deleted', {
         'id': asset_id
     })
     

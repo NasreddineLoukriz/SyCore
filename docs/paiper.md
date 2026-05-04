@@ -3,7 +3,7 @@
 
 **المشكلة**
 
-لو أراد شخص أو شركة لنقل كيان بناء نظام رقمي خاص به بمختلف الاحتياجات (مراسلة، تخزين، نشر، إلى ما ذلك)، نعلم أن هذه الاحتياجات تقنياً تختلف عن بعضها البعض، فلكل احتياج خصائصه ونمطه الذي يتميز به.
+لو أراد شخص أو شركة او اي كيان بناء نظام رقمي خاص به بمختلف الاحتياجات (مراسلة، تخزين، نشر، إلى ما ذلك)، نعلم أن هذه الاحتياجات تقنياً تختلف عن بعضها البعض، فلكل احتياج خصائصه ونمطه الذي يتميز به.
 
 هناك عدة حلول لتلخيصها: 
 
@@ -18,24 +18,6 @@
 نحن نحتاج حلاً يوفر كفاءة الإدارة المركزية والربط بين الأنظمة المختلفة، ولكن دون التضحية بمبدأ الهوية الصفرية والأمان والخصوصية.
 
 ---
-
-### **English Translation**
-
-**SyCore**
-
-**The Problem**
-If an individual or a company (entity) wanted to build their own digital system for various needs (messaging, storage, publishing, etc.), we know that these needs technically differnt from one another; each need has its own characteristics and distinct patterns.
-
-There are several solutions, summarized as follows:
-1. Building multiple systems based on need. The problem with this solution is the difficulty of management, maintenance, and development. So, while this solution is possible, we are looking for a single system that simplifies management and maintenance and provides the possibility for upgrades.
-
-2. There are centralized solutions for managing different systems, such as Firebase, Supabase, etc. These platforms provide high flexibility in synchronization, speed in development, and a massive capability to manage data and control users from a single interface.
-
-However, in return, you sacrifice the user's full digital sovereignty and absolute data privacy. These solutions rely on a "trust model" in the platform, where encryption keys or the ability to access content remain under the authority of the system and its administrators.
-
-We need a solution that provides the efficiency of centralized management and connectivity between different systems, but without sacrificing the principles of zero identity (Zero Trust), security, and privacy.
-
-
 
 
 **الحل المقترح نظام 
