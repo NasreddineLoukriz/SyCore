@@ -105,7 +105,7 @@ class _ApiTesterDashboardState extends State<ApiTesterDashboard> {
   bool _isLoading = false;
 
   // تخزين المتحكمات (Controllers) للحقول الديناميكية
-  Map<String, TextEditingController> _dynamicControllers = {};
+  final Map<String, TextEditingController> _dynamicControllers = {};
 
   @override
   void initState() {
@@ -264,7 +264,7 @@ class _ApiTesterDashboardState extends State<ApiTesterDashboard> {
                               fillColor: Colors.grey.shade50,
                             ),
                             isExpanded: true,
-                            value: _selectedOperationName,
+                            initialValue: _selectedOperationName,
                             items: apiOperations.keys.map((String key) {
                               return DropdownMenuItem<String>(
                                 value: key, 
@@ -310,7 +310,7 @@ class _ApiTesterDashboardState extends State<ApiTesterDashboard> {
                                 ? const Center(child: Text("لا توجد متغيرات مطلوبة لهذه العملية.", style: TextStyle(color: Colors.grey)))
                                 : ListView.separated(
                                     itemCount: _dynamicControllers.length,
-                                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                                    separatorBuilder: (_, _) => const SizedBox(height: 12),
                                     itemBuilder: (context, index) {
                                       String key = _dynamicControllers.keys.elementAt(index);
                                       return TextField(

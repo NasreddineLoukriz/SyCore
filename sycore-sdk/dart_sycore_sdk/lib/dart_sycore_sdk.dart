@@ -1,5 +1,6 @@
 /// مكتبة بروتوكول SY-2139
 /// (Zero-Trust Backend as a Service)
+library;
 
 // 1. تصدير المايسترو (لأنه هو ما سيستدعيه المطور)
 export 'sycore_client.dart';

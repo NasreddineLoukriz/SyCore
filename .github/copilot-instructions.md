@@ -12,8 +12,9 @@
 - **Frontend Compatibility:** Flutter (graphql_flutter).
 
 ## 3. Mandatory Architectural Pillars (THE SY-2139 PROTOCOL)
+In case of conflict, prioritize policy immutability over universal schema enforcement.
 - **Universal Schema (Database):** CRITICAL: Never create separate tables for business entities. Use the `UniversalResource` model with a `JSONField` for all dynamic data. Data MUST be scoped to a `project_id` (Multi-Tenancy) and `owner` (User).
-- **Policy Immutability Gate (Trust on First Use):** The backend does NOT hardcode domain names (like HOSN or SAMAM). When a domain is requested via the SDK for the first time, the backend locks it to the requested `security_clearance` (`E2EE` or `PLAIN`). Future mismatches trigger a Data Poisoning Exception.
+- **Policy Immutability Gate (Trust on First Use):** The backend does NOT hardcode domain names (like HOSN or SAMAM). When a domain is requested via the SDK for the first time, the backend locks it to the requested `security_clearance` (`E2EE` or `PLAIN`). The backend must reject any subsequent requests for the same domain with a different `security_clearance`. If a conflicting `security_clearance` is requested, return a specific error message and log the event.
 - **Universal Storage (Files):** Treat file uploads as generic resources using a single `UniversalAsset` model, enforcing the exact same policy immutability as standard data resources.
 - **Unified Auth:** Use Token-based authentication (e.g., SimpleJWT). Every operation (Read, Write, Upload, WebSocket) must strictly be scoped to `request.user`. Data leakage is a critical failure.
 - **Real-Time Synergy:** Emulate Appwrite's real-time capabilities using GraphQL Subscriptions (via Django Channels). Emit events on resource creation/update/deletion.

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 // الاستيراد الجديد لمكتبة الـ WebSockets
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -135,7 +136,9 @@ class SycoreClient {
         
         decryptedMessages.add(utf8.decode(decryptedBytes));
       } catch (e) {
-        print("Failed to decrypt a HOSN message: $e");
+        if (kDebugMode) {
+          print("Failed to decrypt a HOSN message: $e");
+        }
       }
     }
     return decryptedMessages;
@@ -179,7 +182,9 @@ class SycoreClient {
         );
         decryptedMessages.add(utf8.decode(decryptedBytes));
       } catch (e) {
-        print("Failed to decrypt a SAMAM message: $e");
+        if (kDebugMode) {
+          print("Failed to decrypt a SAMAM message: $e");
+        }
       }
     }
     return decryptedMessages;

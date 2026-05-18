@@ -1,64 +1,98 @@
-# مخطط تدفق HOSN
+---
+marp: true
+theme: default
+paginate: true
+backgroundColor: #f8f9fa
+style: |
+  h1 {
+    color: #2c3e50;
+  }
+  h2 {
+    color: #34495e;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
+  }
+  strong {
+    color: #e74c3c;
+  }
+  p, li {
+    font-size: 1.1em;
+    line-height: 1.5;
+  }
+---
 
-```mermaid
-sequenceDiagram
-	participant أ as الطرف (أ)
-	participant Server as الخادم
-	participant ب as الطرف (ب)
+# 🏰 HOSN Engine
+## 1-to-1 End-to-End Encryption (E2EE)
+**Zero-Knowledge Privacy with Content Recovery**
 
-	أ->>ب: يحصل على ECC Public Key للطرف (ب)
-	أ->>أ: يولد AES256 Message Key
-	أ->>أ: يشفر الملف بـ Message Key
-	أ->>أ: يغلف Message Key بـ ECC Public Key لـ (ب)
-	أ->>أ: يغلف Message Key بـ AES256 Private Key لـ (أ)
-	أ->>Server: يرسل الملف المشفر + المفتاح المغلف لـ (أ) + المفتاح المغلف لـ (ب)
-	ب->>Server: يطلب الملف والمفتاح المغلف له
-	Server->>ب: يرسل الملف المشفر + المفتاح المغلف لـ (ب)
-	ب->>ب: يفك تغليف Message Key باستخدام مفتاحه الخاص
-	ب->>ب: يفك تشفير الملف باستخدام Message Key
-```
-# HOSN: تشفير الند للند واستعادة المحتوى
+---
 
-## المفهوم
+## 🎯 The Concept
 
-HOSN هو نمط أمان يهدف لتوفير تشفير ند-لند (End-to-End) مع إمكانية استعادة والوصول للمحتوى القديم بين الأطراف، بحيث لا يستطيع الخادم (Server) فك تشفير أي محتوى أو معرفة محتواه.
+**HOSN** is a security pattern within the SYCORE Framework designed to provide absolute **End-to-End Encryption (E2EE)** for direct (1-to-1) communication.
 
-## خطوات العمل
+**Key Features:**
+- Absolute secrecy between the two parties.
+- The Server (Dumb Server) cannot decrypt or read *any* content.
+- Ensures **Content Recovery**: the sender can still access their sent history.
 
-1. **تبادل المفاتيح:**
-	- كل طرف (مستخدم) يملك مفاتيح خاصة وعامة:
-	  - AES256 Private Key (مشتق من كلمة السر)
-	  - AES256 Public Key (يتم تغييره دورياً)
-	  - ECC Private Key (يتم تغييره دورياً)
-	  - ECC Public Key (يتم تغييره دورياً)
+---
 
-2. **إرسال المحتوى:**
-	- عند رغبة الطرف (أ) في إرسال محتوى للطرف (ب):
-	  1. يحصل (أ) على المفتاح العام ECC للطرف (ب).
-	  2. يولد (أ) مفتاح عشوائي جديد (AES256 Message Key) لتشفير الرسالة أو الملف.
-	  3. يُشفّر المحتوى بهذا المفتاح (Message Key)، فينتج ملف مشفر واحد فقط.
-	  4. يقوم (أ) بتغليف (تشفير) Message Key مرتين:
-		  - مرة باستخدام ECC Public Key للطرف (ب) (ليتمكن (ب) من فك التشفير).
-		  - مرة باستخدام AES256 Private Key الخاص به (ليتمكن (أ) من استعادة الملف لاحقاً).
-	  5. يرسل (أ) إلى الخادم:
-		  - الملف/الرسالة المشفرة.
-		  - المفتاح المغلف لـ (أ).
-		  - المفتاح المغلف لـ (ب).
+## 📊 Sequence Diagram: HOSN Flow
 
-3. **استلام وفك التشفير:**
-	- عند استلام (ب) للملف:
-	  1. يحصل على المفتاح المغلف الخاص به ويفك تشفيره باستخدام مفتاحه الخاص.
-	  2. يستخدم Message Key لفك تشفير الملف.
 
-## ما يتم تخزينه على الخادم
-- نسخة واحدة من الملف/الرسالة المشفرة.
-- قائمة بالمفاتيح المغلفة (لكل طرف معني).
+<div align="center">
+  <img src="diagram-1778176368223.svg" height="500" width="1200"  "alt="Flow Diagram" />
+</div>
 
-## ملاحظات أمنية
-- لا يستطيع الخادم فك تشفير أي محتوى.
-- عند تغيير المفاتيح، يجب التأكد من استقرار المفاتيح الجديدة قبل حذف القديمة.
-- يتم دمج مفتاح فك التشفير في رأس المحتوى أو إرساله كرسالة منفصلة.
-- يجب معالجة حالات فقد الاتصال أو تعدد الأجهزة أو تغيير كلمة السر بعناية.
+---
 
-## ملخص
-HOSN يضمن سرية تامة للمحتوى بين الأطراف، مع إمكانية استعادة الملفات القديمة، ويمنع الخادم من الوصول لأي بيانات حساسة أو مفاتيح.
+## 🔑 Step 1: Key Exchange
+
+Every user (party) generates and owns a set of cryptographic keys locally on their device:
+- **AES-256 Private Key** (Derived from user's password)
+- **AES-256 Public Key** (Rotated periodically)
+- **ECC Private Key** (X25519 - Rotated periodically)
+- **ECC Public Key** (X25519 - Rotated periodically)
+
+*The server only stores the Public Keys to facilitate exchange.*
+
+---
+
+## 📤 Step 2: Sending Content
+
+When Party A wants to send a file to Party B:
+1. Party A fetches Party B's **ECC Public Key**.
+2. Party A generates a fresh, random **AES-256 Message Key** for this specific file.
+3. The file is encrypted using this Message Key, creating a **single blind ciphertext**.
+4. Party A **wraps (encrypts)** the Message Key twice:
+   - Once using B's ECC Public Key (so B can read it).
+   - Once using A's AES-256 Private Key (so A can recover their sent file).
+5. Party A sends to the server: The encrypted file + Wrapped Key for A + Wrapped Key for B.
+
+---
+
+## 📥 Step 3: Receiving & Decrypting
+
+When Party B receives the file:
+1. Party B fetches the encrypted file and **their specific wrapped key** from the server.
+2. Party B **unwraps** the Message Key using their own Private Key.
+3. Party B uses the unwrapped **Message Key** to finally decrypt the file.
+
+---
+
+## 🗄️ Storage & Security Notes
+**Stored on the Server:**
+- Only **ONE** copy of the encrypted file/message (Blind BLOB).
+- A list of the wrapped keys for the involved parties.
+**Security Constraints:**
+- The server has absolutely **zero ability** to decrypt any content.
+- Key rotation requires verification that new keys are stable before dropping old ones.
+- Decryption keys are attached to the content header or sent as isolated messages.
+- Edge cases (offline availability, multi-device, password changes) must be handled gracefully by the SDK.
+
+---
+
+## ✅ Summary
+
+HOSN guarantees absolute confidentiality of content between two parties. It natively solves the problem of "sender history recovery" while completely preventing the server from accessing sensitive data or keys.

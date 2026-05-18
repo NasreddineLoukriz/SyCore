@@ -1,66 +1,86 @@
-# SYCORE Data Flow Diagram (SY-2139 Protocol v2.0)
+---
+marp: true
+theme: default
+paginate: true
+backgroundColor: #f8f9fa
+style: |
+  h1 {
+    color: #2c3e50;
+  }
+  h2 {
+    color: #34495e;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
+  }
+  strong {
+    color: #e74c3c;
+  }
+  p, li {
+    font-size: 1.1em;
+    line-height: 1.5;
+  }
+---
 
-This document illustrates how data flows through the SYCORE Framework under the **Zero-Trust BaaS** architecture. It highlights the "Smart SDK, Dumb Server" paradigm, ensuring strict isolation between apps (Multi-Tenancy) and enforcing undeniable security policies (Immutability).
+# 🌊 SYCORE Data Flow
+## SY-2139 Protocol Architecture
+**The "Smart SDK, Dumb Server" Paradigm**
 
-```mermaid
-graph TD
-    %% Entities
-    Client((Smart SDK<br/>Flutter/JS))
-    API[GraphQL Gateway<br/>Graphene-Django]
-    Auth{JWT Auth &<br/>Resolve User}
-    PolicyGate{Policy Immutability<br/>Gate}
-    E2EE[E2EE Policy<br/>Zero-Knowledge]
-    PLAIN[PLAIN Policy<br/>Business Logic]
-    Storage[(Universal DB<br/>PostgreSQL/JSONB)]
-    Assets[Media Storage<br/>Assets Vault]
+---
 
-    %% Flow for Data/Resources
-    Client -- 1. Mutation (ProjectID, Domain, Policy, Payload) --> API
-    API -- 2. Validate JWT --> Auth
-    Auth -- 3. Token Valid --> PolicyGate
-    
-    PolicyGate -- "Domain previously locked to E2EE" --> E2EE
-    PolicyGate -- "Domain previously locked to PLAIN" --> PLAIN
-    PolicyGate -.- |"Policy Mismatch (Data Poisoning Risk)"| Exception((Reject Request))
+## 🏗️ The Core Paradigm
 
-    E2EE -- 4. Store Blind Ciphertext --> Storage
-    PLAIN -- 4. Store Transparent Searchable JSON --> Storage
+This presentation provides a detailed view of how data moves from the User (Client Application) through the SYCORE SDK, across the network, and into the Server's persistence layer in our **Zero-Trust BaaS**.
 
-    %% Flow for Files/Assets
-    Client -- 5. Upload File (with SDK Policy) --> API
-    API -- 6. Policy Check & Usages Limits --> Assets
-    Assets -- 7. Save to /media/assets/ --> PhysicalDisk[[Disk/S3]]
+We divide the data flow into **5 distinct phases**.
 
-    %% Legend/Note
-    subgraph Client Authority
-    Client
-    end
+---
 
-    subgraph Backend Subsystem
-    Auth
-    PolicyGate
-    E2EE
-    PLAIN
-    Storage
-    end
+## 🔑 Phase 1: Identity & Key Synchronization
 
-    style E2EE fill:#f96,stroke:#333,stroke-width:2px
-    style PLAIN fill:#6cf,stroke:#333,stroke-width:2px
-    style Storage fill:#9f9,stroke:#333,stroke-width:4px
-    style PolicyGate fill:#ff9,stroke:#333,stroke-width:2px
-    style Exception fill:#f66,stroke:#333,stroke-width:2px,color:#fff
-```
+**Before any data moves, identity must be established.**
 
-## Description of the Flow
+- The **SYCORE SDK** authenticates the user with the backend API.
+- The server returns a JWT Token.
+- If the user invokes `HOSN` (1-to-1) or `SAMAM` (Team), the SDK first queries the backend for the recipient's **Public Keys** (`ecc_public_key`).
+- **Result:** The SDK holds the necessary keys locally to begin the secure payload preparation.
 
-1.  **Initiation (1):** The client application sends a GraphQL request (e.g., `createResource`). If the domain is `HOSN`, the SDK encrypts the data locally before transmission using X25519.
-2.  **Authentication Gate (2 & 3):** The JWT Token is validated, identifying the `request.user`. Unauthorized requests are rejected immediately.
-3.  **Domain Routing (DomainGate):** The request is routed based on the `domain` field.
-    *   **HOSN:** Data is stored as an encrypted blob (Blind Storage). The backend cannot read the content.
-    *   **SAMAM:** Data is stored as searchable JSON for business processing.
-4.  **Universal Storage:** All resources are saved in the `UniversalResource` table, strictly linked to the `owner_id` to prevent data leakage.
-5.  **Asset Management (5, 6, 7):** File uploads check user-specific limits (SY-2139 Limits) before saving to the unified asset storage.
+---
 
-## Updated Flow
+## 🧠 Phase 2: Client-Side Preparation (Smart SDK)
 
-The diagram and description have been updated to reflect that the server does **not** have fixed domain names, but instead has a **Policy Immutability Gate** that routes data based on the encrypted or plain pattern requested by the SDK!
+**The Flutter app says: *"Save this data to this Domain."* The SDK takes over:**
+
+- **If `E2EE` Clearance (HOSN):** The SDK generates a random symmetric Message Key, encrypts the payload (Blind Ciphertext), and *wraps* the Message Key using the recipient's Public Key.
+- **If `PLAIN` Clearance:** The SDK simply structures the JSON.
+- **If `JAHR` Clearance:** The SDK takes the plain data, hashes it, and signs it using the user's `Ed25519` private key.
+
+*The server hasn't been contacted yet.*
+
+---
+
+## 🛡️ Phase 3: Policy Immutability Gate (TOFU)
+
+**The payload reaches the Django API. The Backend acts as a Gatekeeper:**
+
+- The Backend asks: *"Has this Project seen this Domain before?"*
+- **If No (Trust on First Use):** It creates a new `DomainPolicy` and dynamically locks the domain to the requested clearance (`E2EE` or `PLAIN`).
+- **If Yes:** It verifies the incoming clearance against the locked policy.
+- **🚨 Data Poisoning Alert:** If an attacker sends `PLAIN` data to an `E2EE` domain, the backend instantly rejects the request.
+
+---
+
+## 🗄️ Phase 4 & 5: Universal Storage & Real-Time
+
+**Persistence and Broadcast:**
+
+- **Phase 4 (Storage):** Once past the gate, the data is dumped blindly into the `UniversalResource` table. No complex relational migrations. The row is strictly scoped to the `owner_id` and `project_id`.
+- **Phase 5 (Real-Time Synergy):** Instantly upon save, Django Channels (`async_to_sync`) broadcasts the raw row data over WebSockets to authenticated devices. 
+- The receiving SDK unwraps the keys and decrypts the data transparently to the user interface.
+
+---
+
+
+
+## 📊 Flow Diagram: The Developer's Choice to TOFU
+
+![Flow Diagram](diagram-1778175803180.svg)

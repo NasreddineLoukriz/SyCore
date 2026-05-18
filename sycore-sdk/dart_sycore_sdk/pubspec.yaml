@@ -1,6 +1,6 @@
 name: dart_sycore_sdk
 description: "مكتبة Flutter/Dart الرسمية لبروتوكول SY-2139 (Zero-Trust Backend as a Service)"
-version: 0.0.1
+version: 0.0.2
 repository: https://github.com/NasreddineLoukriz/SyCore/tree/main/sycore-sdk/dart_sycore_sdk
 
 environment:
@@ -11,7 +11,7 @@ dependencies:
   cryptography: ^2.9.0
   flutter:
     sdk: flutter
-  flutter_secure_storage: ^10.0.0
+  flutter_secure_storage: ^10.2.0
   graphql_flutter: ^5.3.0
   http: ^1.6.0
   web_socket_channel: ^3.0.3
