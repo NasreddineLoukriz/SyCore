@@ -105,9 +105,9 @@ six==1.17.0
     #   python-dateutil
 sqlparse==0.5.5
     # via django
-text-unidecode2>=2.0.0
+text-unidecode==1.3
     # via graphene-django
-twisted[tls]==25.5.0
+twisted[tls]==26.4.0
     # via daphne
 txaio==25.12.2
     # via autobahn
