@@ -1,4 +1,4 @@
-Django>=6.0.4
+Django>=6.0.5
 graphene-django>=3.2.3
 django-cors-headers
 channels[redis]>=4.2.0
