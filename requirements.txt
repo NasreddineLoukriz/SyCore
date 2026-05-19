@@ -117,7 +117,7 @@ typing-extensions==4.15.0
     #   psycopg
     #   pyopenssl
     #   twisted
-ujson==5.12.0
+ujson==5.12.1
     # via autobahn
 zope-interface==8.3
     # via twisted
