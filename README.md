@@ -1,56 +1,136 @@
-# SYCORE Framework (SY-2139 Protocol) 🛡️
+# SyCore
 
-**SYCORE** is a next-generation "Smart SDK, Dumb Server" Backend-as-a-Service (BaaS) designed to compete with Firebase and Appwrite, but with **Zero-Trust** and **End-to-End Encryption (E2EE)** at its core.
+**An open, end-to-end encrypted storage layer for apps.**
 
-Powered by the **Sa'ei al-Yaqeen (SY-2139) Protocol**, the backend acts as a highly secure, generic vault that enforces a compound identity (`project_id` + `domain_name` + `security_clearance`). The data privacy policies are entirely dictated by the Client SDK and immutably enforced by the backend.
+The server stores sealed boxes and a list of who may open them. It cannot read
+the content, and it cannot be made to.
 
-## 🌟 Features
+```
+device ──AES-256-GCM──▶ ciphertext ─┐
+       ──wrapped keys──▶ wraps[] ────┴──▶ server   (stores bytes, checks names)
+                                            │
+device ◀──open with a wrapped key───────────┘
+```
 
-*   **Zero-Knowledge Privacy (E2EE)**: The server never knows your data. If clearance is set to `E2EE`, the payload is an encrypted blob (Blind Storage).
-*   **Universal Schema**: No need to create specific tables for business entities. Everything is a `UniversalResource` or `UniversalAsset`.
-*   **Policy Immutability Gate**: Trust on First Use (TOFU). Domains are locked to their initial security clearance (`E2EE`, `PLAIN`, `JAHR`, etc.).
-*   **Real-Time Synergy**: Live GraphQL Subscriptions and WebSockets (Django Channels) for real-time updates without polling.
-*   **Unified Cryptographic Engines**:
-    *   **🏰 HOSN (1-to-1 E2EE)**: Private messaging using X25519 and ChaCha20-Poly1305.
-    *   **🏢 SAMAM (Team Encryption)**: Group/Team environments using a wrapped Team Master Key (AES-GCM).
-    *   **📢 JAHR (Public Signed Content)**: Public but verifiable data using Ed25519 digital signatures.
+---
 
-## 🏗️ Architecture & Ecosystem
+## Status
 
-*   `sycore-backend/`: The core Django application (GraphQL API, Real-Time subscriptions, Core Auth).
-*   `sycore-sdk/`: Client-side SDKs (e.g., Flutter `dart_sycore_sdk`) that abstract the encryption protocol and API calls.
-*   `sycore-console/`: A web-based admin dashboard for developers.
-*   `sycore-cli/`: Command-line interface for deploying and managing the environment.
-*   `development-docker/`: Docker Compose setup for a zero-complexity Appwrite-like deployment.
+| Component | State |
+|---|---|
+| **Wire format v1** — [`spec/SPEC.md`](spec/SPEC.md) | ✅ normative, 200 lines |
+| **Conformance vectors** — [`vectors/v1.json`](vectors/v1.json) | ✅ generated, CI-verified |
+| **Dart client** — [`packages/sycore_core`](packages/sycore_core) | ✅ **14 tests green** against the vectors |
+| **Runnable demo** — [`examples/demo.dart`](examples/demo.dart) | ✅ 8 scenes, all four engines |
+| FastAPI server (Postgres) | ⬜ next |
+| Flutter application | ⬜ next |
+| TypeScript client | ⬜ later |
 
-## 🚀 Getting Started
+> v1 is a **specification with a working client and executable vectors**.
+> The vectors are the contract: any implementation that passes them is
+> compatible. That is the whole point.
 
-### 1. Backend Setup
+---
+
+## Run it
+
 ```bash
-cd sycore-backend
-python -m venv venv
-source venv/bin/activate
-pip install -r ../requirements.txt
-python manage.py migrate
-python manage.py runserver
+cd examples
+dart pub get
+dart run demo.dart
 ```
 
-### 2. Client SDK (Flutter/Dart)
-Add `dart_sycore_sdk` to your project and initialize the Maestro:
+Nothing else. No server, no database, no network.
 
-```dart
-import 'package:dart_sycore_sdk/dart_sycore_sdk.dart';
+To verify conformance:
 
-final sycore = await SycoreClient.initialize(
-  endpointUrl: 'http://localhost:8000/graphql/',
-  projectId: 'my_awesome_project',
-);
-
-// E2EE is handled entirely seamlessly!
+```bash
+cd packages/sycore_core
+dart pub get
+dart test          # 14 tests, ~6 s
 ```
 
-## 📚 Documentation
-Check out the `/sycore-sdk/dart_sycore_sdk/docs` folder for detailed SDK usage.
+---
 
-## 🔒 Security
-This framework enforces strict separation between the transmission layer and the cryptographic layer. The backend **cannot** attempt to parse, search, or modify E2EE payloads. Data leakage is considered a critical architecture failure.
+## What the demo proves
+
+| # | Scene | Claim |
+|---|---|---|
+| 1 | Identities | one X25519 key + one Ed25519 key per user |
+| 2 | Vault | one `VK`, two device envelopes, password rotation that **does not re-encrypt anything** |
+| 3 | HOSN | Ali → Sara; the server tries to decrypt and fails |
+| 4 | AAD | the server transplants a ciphertext to another row → unopenable |
+| 5 | SAMAM | remove a member → epoch+1 → the removed member cannot read the future but keeps the past |
+| 6 | JAHR | publish signed; tamper fails; **a self-signed forgery fails** against the directory |
+| 7 | TOFU | a domain locked to `E2EE` rejects a `PLAIN` write |
+| 8 | Summary | exactly what the server saw: readership, size, time — never content |
+
+Every scene uses real cryptography. The only mock is `BlindServer`, an
+in-memory class that contains **no cryptographic code at all**.
+
+---
+
+## Engines are wrap-counts
+
+There is no `hosn.py`, no `samam` table, no `if engine == ...`. An engine is a
+shape of `wraps`:
+
+| Engine | Who can read | `wraps` |
+|---|---|---|
+| **Vault** | you, on any of your devices | 1 (`owner`) |
+| **HOSN** | you + one person | 2 |
+| **SAMAM** | you + a group | 1 + N |
+| **JAHR** | everyone | 0 + signature |
+
+`wraps` lives **outside** the ciphertext. That is the only reason a blind
+server can authorize a read without decrypting.
+
+---
+
+## What the server knows
+
+- who owns a row, who may read it, when, how big, which domain
+- **not**: the content, the keys, or the words inside
+
+This is stated as a limitation, not hidden: see [`SPEC.md` §10](spec/SPEC.md).
+Metadata is visible by design. Content is not.
+
+---
+
+## Repository map
+
+```
+spec/SPEC.md              the wire format — read this first
+packages/sycore_core/     Dart client (crypto, vault, envelope, group, jahr)
+vectors/v1.json           conformance vectors (Python generator included)
+examples/demo.dart        the 8-scene live demonstration
+tools/gen_vectors.py      regenerates the vectors; CI requires a clean diff
+sycore-backend/           ⚠ legacy Django prototype (2026-05) — reference only
+sycore-sdk/               ⚠ legacy SDK
+docs/                     design notes and the original decision log
+```
+
+The `sycore-backend/` and `sycore-sdk/` trees are the May 2026 prototype. They
+predate the spec and do not implement it (no `wraps` table, no AAD). They are
+kept for the design history, not as a starting point.
+
+---
+
+## بالعربية
+
+**SyCore طبقة تخزين مشفّرة من الطرف إلى الطرف.** التطبيق يشفّر قبل الإرسال،
+والخادم يخزّن صناديق مقفولة وقائمة بمن يملك مفاتيحها، ولا يستطيع قراءة المحتوى.
+
+**المحرّكات ليست وحدات في الخادم** — هي عدد اللفّات:
+الخزنة = 1 · HOSN = 2 · SAMAM = 1+N · JAHR = 0 + توقيع.
+
+**للتحقق السريع:** `cd examples && dart pub get && dart run demo.dart`
+ثمانية مشاهد تُظهر الخزنة وHOSN وSAMAM وJAHR ومنع نقل الرسائل ومنع الانتحال.
+
+المواصفة في `spec/SPEC.md`، واختبارات المطابقة في `vectors/v1.json`.
+
+---
+
+## License
+
+Apache-2.0 — see [`LICENSE`](LICENSE).

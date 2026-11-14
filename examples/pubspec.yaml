@@ -1,0 +1,10 @@
+name: sycore_examples
+description: Runnable demonstrations of the SYCORE v1 protocol.
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  sycore_core:
+    path: ../packages/sycore_core

@@ -1,0 +1,107 @@
+{
+  "spec": "sycore/v1",
+  "kdf_params": {
+    "time_cost": 3,
+    "memory_cost": 65536,
+    "parallelism": 4,
+    "hash_len": 32,
+    "type": "argon2id",
+    "v": 19
+  },
+  "vault": {
+    "password": "correct horse battery staple",
+    "device_id": "dev_phone",
+    "expected_kek": "hTsnKkTbFCHAKWJmmlXrCZTzyrOF7RxMeSU-7hm6tJ4",
+    "envelope": {
+      "v": 1,
+      "device_id": "dev_phone",
+      "kdf": {
+        "alg": "argon2id",
+        "v": 19,
+        "t": 3,
+        "m": 65536,
+        "p": 4,
+        "salt": "AAECAwQFBgcICQoLDA0ODw"
+      },
+      "nonce": "oKCgoKCgoKCgoKCg",
+      "wrapped_vk": "MlDYWK6EPiCM1zBkcg8B_hmpboge6vz8Gp6gnTp0Utd3N9WGlsZMsB5RmwiCeA57"
+    },
+    "expected_vk": "ERERERERERERERERERERERERERERERERERERERERERE",
+    "wrong_password_must_fail": true,
+    "wrong_device_must_fail": true,
+    "change_password": {
+      "new_password": "new passphrase 2026",
+      "new_salt": "ZGVmZ2hpamtsbW5vcHFycw",
+      "new_nonce": "oaGhoaGhoaGhoaGh",
+      "expected_vk_unchanged": "ERERERERERERERERERERERERERERERERERERERERERE"
+    }
+  },
+  "hosn": {
+    "project_id": "prj_home",
+    "domain": "health",
+    "resource_id": "res_7f3a",
+    "owner_id": "usr_ali",
+    "recipient_id": "usr_sara",
+    "version": 1,
+    "owner_private_seed_sha256": "831ab2a4fefc4e7e7e62641dc1821a8abe8d5b1c4a091b491317cc77325cdae5",
+    "owner_public": "q7sKNHKMmvaNR2wTf_Lj-kZFV64Lc6LvzX28azEpbxE",
+    "recipient_public": "LzGw991o9WK8i5ARc2zjNOLYO7tz4HA-PDhRLccz2yY",
+    "content_key": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI",
+    "plaintext": "موعد العملية: 15 جانفي، مستشفى مصطفى باشا، الساعة 8:30",
+    "nonce_content": "wMDAwMDAwMDAwMDA",
+    "ciphertext": "wICPA_tbk21IR-pKFoGpSymJUo-wT7MRgmGbwtGNeE9CuLjzLEetH87A4-bnbV4UADhGkX7tZUfyH-O6eBQbNEX1OoC4pyMvcTZ-wDBpOD5A8gHh8yUiBqAZUmeHH00hKZK7tHsgILPNq1ZLIg",
+    "owner_wrap": {
+      "to": "usr_ali",
+      "kind": "owner",
+      "nonce": "CgoKCgoKCgoKCgoK",
+      "ct": "02RafYkrjMTzISBKwdOIFkD-EIBV9SpNclZpb9QxemqE7h9ptMYc_Vyzn7W9TiJ5"
+    },
+    "recipient_wrap": {
+      "to": "usr_sara",
+      "kind": "recipient",
+      "epk": "q7sKNHKMmvaNR2wTf_Lj-kZFV64Lc6LvzX28azEpbxE",
+      "nonce": "e3t7e3t7e3t7e3t7",
+      "ct": "2eBDPjVBtX_n3JuzeiZx-lAl2JqkbiLg8tO5tYmvVgFW7Ms3pRcYoYiKq1L8YG2l"
+    },
+    "expected_k_wrap": "s7l-965dtApvBoEZJ81eXxywdqIvWL54qWTGYyrUUMA",
+    "negative": [
+      "transplant_to_other_resource_must_fail",
+      "relabel_recipient_must_fail"
+    ]
+  },
+  "jahr": {
+    "project_id": "prj_home",
+    "domain": "health",
+    "resource_id": "res_7f3a",
+    "owner_id": "usr_ali",
+    "content": "موعد العملية: 15 جانفي، مستشفى مصطفى باشا، الساعة 8:30",
+    "digest_sha256": "uorlb2KFqmXYj30ILrIJY__Qg3DVQ-o_dFdW3YmcKHc",
+    "canonical": "sycore/v1|jahr|prj_home|health|res_7f3a|usr_ali|uorlb2KFqmXYj30ILrIJY__Qg3DVQ-o_dFdW3YmcKHc",
+    "signer_public": "1R57YTtm3pLgtqT7UY3ZcqokEA-L51yHZyDpIhYd-4Q",
+    "signature": "PupkIixHldHxyifIJ2fSJ51GZhhyju-iRdp6hBnQ2BxXaiN6mnQduLDByWG3x2ldEk_jJO2__hodZKi5_MaoCg",
+    "must_verify": true,
+    "must_not_verify": [
+      "tampered_content",
+      "attacker_key",
+      "replayed_in_other_domain"
+    ]
+  },
+  "engine_shapes": {
+    "vault": {
+      "wraps": 1,
+      "signature": false
+    },
+    "hosn": {
+      "wraps": 2,
+      "signature": false
+    },
+    "samam": {
+      "wraps": "1+N",
+      "signature": false
+    },
+    "jahr": {
+      "wraps": 0,
+      "signature": true
+    }
+  }
+}

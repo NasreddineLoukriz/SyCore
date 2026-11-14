@@ -22,3 +22,9 @@ sycore-sdk/dart_sycore_sdk/.packages
 # VS Code / IDE
 .vscode/
 .idea/
+
+# Dart / Flutter (v1 prototype)
+.dart_tool/
+.packages
+build/
+packages/*/pubspec.lock
