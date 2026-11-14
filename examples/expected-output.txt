@@ -1,106 +1,98 @@
 
   S Y C O R E  ·  wire format v1
-  خادم أعمى · عميل ذكي · المحرّكات = عدد اللفّات
+  blind server · smart client · engines are wrap-counts
 
-  SPEC.md §2-§8  ·  vectors/v1.json  ·  sycore_core 0.1.0
-
-════════════════════════════════════════════════════════════════════
-  المشهد 1  الهويات
-  every user = one X25519 key + one Ed25519 key
-════════════════════════════════════════════════════════════════════
-       usr_ali    fingerprint L0zBR4-Fy4fV
-       usr_sara   fingerprint Xzot-F3gmNRw
-       usr_mona   fingerprint se93T2M6zptO
-  [  OK  ] ثلاث هويات، والمفاتيح العامة فقط نُشرت في الدليل
+  spec/SPEC.md §2-§8  ·  vectors/v1.json  ·  sycore_core 0.1.0
 
 ════════════════════════════════════════════════════════════════════
-  المشهد 2  الخزنة: مفتاح واحد، أجهزة متعددة
-  password → Argon2id → KEK → wrapped VK
+  Scene 1   Identities — one X25519 key + one Ed25519 key per user
 ════════════════════════════════════════════════════════════════════
-  [CLIENT] جهاز الهاتف: Argon2id (3 iterations, 64 MiB) في 751 ms
-       VK = OY2PX8KJdL1pYk-QKI0kYZMSp_…  (لا يغادر الجهاز أبداً)
-       ظرف الهاتف: EihsL5tCS8tAr6i5WTVi9WfTcY…
-       ظرف اللابتوب: xV0BHqXGKI3675ZWXIISLj2pFF…  (نفس VK، ظرف مختلف)
-  [  OK  ] الهاتف فتح الخزنة:  VK = OY2PX8KJdL1pYk-QKI0kYZMSp_…
-  [  OK  ] اللابتوب فتح الخزنة: VK = OY2PX8KJdL1pYk-QKI0kYZMSp_…
-  [  OK  ] نفس المفتاح بالبايت: true
-  [SERVER] يخزّن ظرفين فقط — ولا يعرف كلمة السر ولا VK
-  [  OK  ] كلمة سر خاطئة — فشل كما هو متوقّع
-  [  OK  ] نقل ظرف الهاتف إلى جهاز آخر — فشل كما هو متوقّع
-  [  OK  ] تغيير كلمة السر: VK لم يتغيّر بايتاً واحداً (مطابق)
-       لم تُعَد تشفير أي بيانات — أُعيد لفّ VK فقط
-  [  OK  ] كلمة السر القديمة بعد التغيير — فشل كما هو متوقّع
+         usr_ali    fingerprint L0zBR4-Fy4fV
+         usr_sara   fingerprint Xzot-F3gmNRw
+         usr_mona   fingerprint se93T2M6zptO
+  [  OK  ] three identities; only public keys went into the directory
 
 ════════════════════════════════════════════════════════════════════
-  المشهد 3  HOSN: رسالة بين شخصين
-  two wraps: owner + one recipient
+  Scene 2   Vault — password → Argon2id → KEK → wrapped VK
 ════════════════════════════════════════════════════════════════════
-  [CLIENT] علي شفّر الرسالة ولفّ المفتاح مرّتين
-       CK = UlNYnczhXNIcJw5VtFeAMY3zE_…
-       wraps = 2  → usr_ali:owner, usr_sara:recipient
-  [SERVER] خزّن 109 بايت مشفّرة في المجال health
-       ciphertext = 2K1YwJP3ng4sKFDP0PC4lNoOGC_3cNUUgPqqkpnOKYbf…
-       قائمة القرّاء = usr_ali, usr_sara  (بيانات وصفية فقط)
-  [BLOCK ] الخادم حاول فكّ التشفير بمفتاح عشوائي → فشل (لا يملك CK)
-  [  OK  ] سارة جلبت الظرف وفكّته: "موعد العملية: 15 جانفي، مستشفى مصطفى باشا، الساعة 8:30"
-  [  OK  ] منى (ليست في wraps) تحاول الجلب — فشل كما هو متوقّع
+  [CLIENT] phone: Argon2id (3 iterations, 64 MiB) took 725 ms
+         VK = SizKQ40NLkj_1wKkDEHbrACxjj…  (never leaves the device)
+         phone envelope: JQHvJukLIPV1Nfnri6hx1xNnTW…
+         laptop envelope: jfNodcniSXjsyxRNOr2JcGZFrx…  (same VK, different envelope)
+  [  OK  ] phone unlocked the vault:  VK = SizKQ40NLkj_1wKkDEHbrACxjj…
+  [  OK  ] laptop unlocked the vault: VK = SizKQ40NLkj_1wKkDEHbrACxjj…
+  [  OK  ] byte-identical key: true
+  [SERVER] stores two envelopes only — knows neither the password nor the VK
+  [  OK  ] wrong password — failed, as expected
+  [  OK  ] replaying the phone envelope on another device — failed, as expected
+  [  OK  ] password changed: the VK is unchanged, byte for byte (identical)
+         nothing was re-encrypted — only the VK was re-wrapped
+  [  OK  ] the old password, after the change — failed, as expected
 
 ════════════════════════════════════════════════════════════════════
-  المشهد 4  AAD: لماذا لا يستطيع الخادم نقل الرسائل
-  ciphertext is bound to its row
+  Scene 3   HOSN — a message between two people: 2 wraps
 ════════════════════════════════════════════════════════════════════
-  [SERVER] مشغّل خبيث نقل الشيفرة من res_001 إلى res_999…
-  [  OK  ] سارة تفتح الشيفرة المنقولة — فشل كما هو متوقّع
-       الرسالة لم تُلمس، لكن AAD يحمل رقم المورد → يفشل الفتح
+  [CLIENT] Ali encrypted the message and wrapped the key twice
+         CK = AiNoO0Fr30eIK7sKkAk9V7aVvR…
+         wraps = 2  → usr_ali:owner, usr_sara:recipient
+  [SERVER] stored 66 ciphertext bytes in domain health
+         ciphertext = xz7baKrlaMVOPX-b24JHcGk5eO74VRq8PyI4TtBT_cPc…
+         readers = usr_ali, usr_sara  (metadata only)
+  [BLOCK ] the server tried to decrypt with a random key → failed (it has no CK)
+  [  OK  ] Sara fetched and opened it: "Surgery: 15 January, Mustapha Pacha hospital, 8:30"
+  [  OK  ] Mona, not in the wraps, tries to fetch — failed, as expected
 
 ════════════════════════════════════════════════════════════════════
-  المشهد 5  SAMAM: مجموعة، وسحب عضو
-  1 + N wraps, and an epoch per rotation
+  Scene 4   AAD — why the server cannot move a ciphertext to another row
 ════════════════════════════════════════════════════════════════════
-       Epoch 1 · الأعضاء: usr_ali, usr_sara, usr_mona
-  [  OK  ] رسالة epoch 1: wraps = 4  (المالك + 3 أعضاء)
-  [  OK  ] منى قرأت: "ميزانية جانفي: 45,000 دج"
-  [SERVER] سحب منى من المجموعة → epoch 2 بمفتاح جديد
-  [  OK  ] رسالة epoch 2: wraps = 3  — منى ليست فيها
-  [  OK  ] منى تحاول قراءة رسالة epoch 2 — فشل كما هو متوقّع
-  [  OK  ] منى ما زالت تقرأ رسالة epoch 1 (كانت عضواً حينها): "ميزانية جانفي: 45,000 دج"
-       هذا هو الفرق بين «سحب» و«إخفاء الماضي»
+  [SERVER] a malicious operator copied the ciphertext from res_001 to res_999…
+  [  OK  ] Sara opens the relocated ciphertext — failed, as expected
+         the bytes are untouched, but the AAD carries the resource id → open fails
 
 ════════════════════════════════════════════════════════════════════
-  المشهد 6  JAHR: نشر عام موقّع
-  zero wraps, one signature, read by anyone
+  Scene 5   SAMAM — a group, then a member is removed: 1 + N wraps
 ════════════════════════════════════════════════════════════════════
-  [  OK  ] نُشر: wraps = 0 · signature = RGJSbkRCQxjV5arYcVnh1mpPtZ…
-  [  OK  ] زائر بلا حساب قرأ المنشور (JAHR عام بطبيعته)
-  [  OK  ] التحقق من الدليل: true
-  [BLOCK ] محتوى معدَّل → التحقق: false
-  [SERVER] انتحال: المحتوى منسوب إلى علي، والتوقيع بمفتاح المهاجم
-  [BLOCK ] تحقّق بالمفتاح المرفق مع الحمولة → true  ← الفخ
-  [  OK  ] تحقّق بالدليل الموثوق → false  ← الدفاع
-       لهذا لا يُقبل مفتاح من الحمولة أبداً — SPEC.md §7
+         epoch 1 · members: usr_ali, usr_sara, usr_mona
+  [  OK  ] epoch 1 message: wraps = 4  (owner + 3 members)
+  [  OK  ] Mona read it: "January budget: 45,000 DZD"
+  [SERVER] Mona is removed → epoch 2 with a fresh key
+  [  OK  ] epoch 2 message: wraps = 3  — Mona is not in it
+  [  OK  ] Mona tries to read the epoch 2 message — failed, as expected
+  [  OK  ] Mona can still read the epoch 1 message (she was a member then): "January budget: 45,000 DZD"
+         that is the difference between removing a member and rewriting their past
 
 ════════════════════════════════════════════════════════════════════
-  المشهد 7  TOFU: قفل المجال
-  a domain keeps its clearance forever
+  Scene 6   JAHR — public content, signed: 0 wraps, 1 signature
 ════════════════════════════════════════════════════════════════════
-       health مقفول على: E2EE
-  [  OK  ] كتابة PLAIN داخل مجال E2EE — فشل كما هو متوقّع
-       هجوم تلويث البيانات: صف مكشوف وسط صفوف مشفّرة → مرفوض
+  [  OK  ] published: wraps = 0 · signature = YWA3d09iKbed0_O0Q-OJlA0Of1…
+  [  OK  ] an anonymous visitor read it (JAHR is public by design)
+  [  OK  ] verified against the directory: true
+  [BLOCK ] tampered content → verify: false
+  [SERVER] forgery: the content claims to be Ali, signed with the attacker key
+  [BLOCK ] verify with the key shipped in the payload → true  ← the trap
+  [  OK  ] verify against the trusted directory → false  ← the defence
+         that is why a key from the payload is never accepted — spec/SPEC.md §7
 
 ════════════════════════════════════════════════════════════════════
-  المشهد 8  ماذا رأى الخادم؟
-  the whole point, in one table
+  Scene 7   TOFU — a domain keeps its clearance forever
 ════════════════════════════════════════════════════════════════════
-       res_001       readers=2  len=146  sig=none
-       res_g01       readers=4  len=72  sig=none
-       res_g02       readers=3  len=72  sig=none
-       res_post_01   readers=0  len=96  sig=present
+         health is locked to: E2EE
+  [  OK  ] writing PLAIN into an E2EE domain — failed, as expected
+         data poisoning: one plaintext row among encrypted rows → rejected
 
-  [  OK  ] الخادم عرف: من، لمن، متى، حجم، مجال
-  [  OK  ] الخادم لم يعرف: حرفاً واحداً من المحتوى
-       تفويضات ناجحة: 2 · مرفوضة: 1
+════════════════════════════════════════════════════════════════════
+  Scene 8   What the server saw — the whole point
+════════════════════════════════════════════════════════════════════
+         res_001       readers=2  len=88  sig=none
+         res_g01       readers=4  len=56  sig=none
+         res_g02       readers=3  len=58  sig=none
+         res_post_01   readers=0  len=64  sig=present
+
+  [  OK  ] the server knew: who, for whom, when, how big, which domain
+  [  OK  ] the server did not know: a single character of the content
+         authorizations granted: 2 · denied: 1
 
 ────────────────────────────────────────────────────────────────────
-  نفس الظرف في كل المشاهد: ciphertext + nonce + wraps[] + signature?
-  خزنة=1 · HOSN=2 · SAMAM=1+N · JAHR=0+توقيع
+  One envelope in every scene: ciphertext + nonce + wraps[] + signature?
+  vault=1 · HOSN=2 · SAMAM=1+N · JAHR=0+sig
 ────────────────────────────────────────────────────────────────────

@@ -40,7 +40,8 @@ device ◀──open with a wrapped key───────────┘
 ```bash
 cd examples
 dart pub get
-dart run demo.dart
+dart run demo.dart        # English
+dart run demo.dart --ar   # العربية
 ```
 
 Nothing else. No server, no database, no network.
