@@ -1,5 +1,7 @@
 # SyCore
 
+[![v1 conformance](https://github.com/NasreddineLoukriz/SyCore/actions/workflows/vectors.yml/badge.svg)](https://github.com/NasreddineLoukriz/SyCore/actions/workflows/vectors.yml)
+
 **An open, end-to-end encrypted storage layer for apps.**
 
 The server stores sealed boxes and a list of who may open them. It cannot read
@@ -22,6 +24,7 @@ device ◀──open with a wrapped key───────────┘
 | **Conformance vectors** — [`vectors/v1.json`](vectors/v1.json) | ✅ generated, CI-verified |
 | **Dart client** — [`packages/sycore_core`](packages/sycore_core) | ✅ **14 tests green** against the vectors |
 | **Runnable demo** — [`examples/demo.dart`](examples/demo.dart) | ✅ 8 scenes, all four engines |
+| **Presenter's script** — [`DEMO.md`](DEMO.md) | ✅ pre-flight, scene-by-scene, Q&A |
 | FastAPI server (Postgres) | ⬜ next |
 | Flutter application | ⬜ next |
 | TypeScript client | ⬜ later |
@@ -49,6 +52,10 @@ cd packages/sycore_core
 dart pub get
 dart test          # 14 tests, ~6 s
 ```
+
+CI runs both jobs on every push: vectors must regenerate byte-identically, and
+the Dart client must pass them. The blind server is additionally checked for
+**zero cryptographic imports**.
 
 ---
 
@@ -104,6 +111,8 @@ spec/SPEC.md              the wire format — read this first
 packages/sycore_core/     Dart client (crypto, vault, envelope, group, jahr)
 vectors/v1.json           conformance vectors (Python generator included)
 examples/demo.dart        the 8-scene live demonstration
+examples/expected-output.txt  the exact output, for offline presenting
+DEMO.md                   presenter's script: checklist, scenes, Q&A, limits
 tools/gen_vectors.py      regenerates the vectors; CI requires a clean diff
 sycore-backend/           ⚠ legacy Django prototype (2026-05) — reference only
 sycore-sdk/               ⚠ legacy SDK

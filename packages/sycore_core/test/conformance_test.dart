@@ -20,8 +20,8 @@ Future<Uint8List> sha256(String s) async =>
 Future<Identity> identityFromSeeds(String id, String label) async {
   return Identity.fromKeyPairs(
     id,
-    dh: await X25519().newKeyPairFromSeed(await sha256('${label}-x25519-v1')),
-    signing: await Ed25519().newKeyPairFromSeed(await sha256('${label}-ed25519-v1')),
+    dh: await X25519().newKeyPairFromSeed(await sha256('$label-x25519-v1')),
+    signing: await Ed25519().newKeyPairFromSeed(await sha256('$label-ed25519-v1')),
   );
 }
 
@@ -240,7 +240,7 @@ void main() {
         wraps: const [],
         signature: j['signature'] as String,
       );
-      expect(await dir.signingKeyOf('usr_ali'), isNotEmpty);
+      expect(dir.signingKeyOf('usr_ali'), isNotEmpty);
       expect(
         await verifyPublic(
           envelope: env,

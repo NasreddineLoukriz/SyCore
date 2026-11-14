@@ -1,0 +1,79 @@
+name: v1 conformance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  vectors:
+    name: vectors are deterministic
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install generator dependencies
+        run: pip install argon2-cffi cryptography
+
+      - name: Regenerate
+        run: python tools/gen_vectors.py
+
+      - name: A regenerated vectors/v1.json must be byte-identical
+        run: |
+          if ! git diff --exit-code -- vectors/; then
+            echo "::error::vectors/v1.json is stale, or the generator is non-deterministic"
+            exit 1
+          fi
+
+      - name: Normative strings are pinned in the spec
+        run: |
+          for s in 'sycore/v1|' 'sycore/v1|vault|' 'sycore/v1/hosn/wrap' 'sycore/v1|jahr|'; do
+            grep -qF "$s" spec/SPEC.md || {
+              echo "::error::spec/SPEC.md lost the normative string: $s"
+              exit 1
+            }
+          done
+
+  conformance:
+    name: Dart client passes the vectors
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install
+        working-directory: packages/sycore_core
+        run: dart pub get
+
+      - name: Analyze
+        working-directory: packages/sycore_core
+        run: dart analyze --fatal-infos
+
+      - name: Conformance tests
+        working-directory: packages/sycore_core
+        run: dart test
+
+      - name: The blind server must contain no cryptography
+        run: |
+          if grep -nE "AES|X25519|Ed25519|HKDF|Argon|Sha256|Hmac|encrypt|decrypt" \
+               packages/sycore_core/lib/src/blind_server.dart; then
+            echo "::error::blind_server.dart grew a cryptographic dependency"
+            exit 1
+          fi
+
+      - name: The demo runs offline and never reports a failure
+        working-directory: examples
+        run: |
+          dart pub get
+          dart run demo.dart | tee out.txt
+          if grep -q "FAIL" out.txt; then
+            echo "::error::the demo reported a failure"
+            exit 1
+          fi
