@@ -10,4 +10,5 @@ export 'src/envelope.dart';
 export 'src/group.dart';
 export 'src/identity.dart';
 export 'src/jahr.dart';
+export 'src/model.dart';
 export 'src/vault.dart';

@@ -127,7 +127,7 @@ Future<void> main() async {
     vaultKey: vk,
     owner: ali,
     plaintext: utf8b(secret),
-    recipients: [await Recipient.of(sara)],
+    recipients: [await recipientOf(sara)],
   );
   client('علي شفّر الرسالة ولفّ المفتاح مرّتين');
   info('CK = ${short(msg.wraps.isEmpty ? '' : b64u(await contentKeyAsOwner(msg, vk)))}');
@@ -187,7 +187,7 @@ Future<void> main() async {
     id: 'grp_family',
     projectId: 'prj_home',
     domain: 'expenses',
-    members: [await Recipient.of(ali), await Recipient.of(sara), await Recipient.of(mona)],
+    members: [await recipientOf(ali), await recipientOf(sara), await recipientOf(mona)],
   );
   info('Epoch ${group.epoch} · الأعضاء: ${group.members.keys.join(', ')}');
 
@@ -287,7 +287,7 @@ Future<void> main() async {
     final view = serverInstance.wireView(id);
     info('${(view['id'] as String).padRight(13)} '
         'readers=${(view['readers'] as List).length}  '
-        'bytes=${view['ciphertext_bytes']}  '
+        'len=${view['ciphertext_chars']}  '
         'sig=${view['signature']}');
   }
   stdout.writeln();

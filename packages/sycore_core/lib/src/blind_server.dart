@@ -2,8 +2,7 @@
 /// policy. It has no crypto and no keys — on purpose.
 library;
 
-import 'crypto.dart';
-import 'envelope.dart';
+import 'model.dart';
 
 /// Domain clearances. The server only stores the string; it never verifies it.
 abstract final class Clearance {
@@ -30,7 +29,7 @@ class BlindServer {
   final Map<String, Envelope> _resources = {};
   final Map<String, String> _policy = {};
 
-  int storedBytes = 0;
+  int storedChars = 0;
   int authorizations = 0;
   int denials = 0;
 
@@ -53,7 +52,7 @@ class BlindServer {
     }
 
     _resources[env.id] = env;
-    storedBytes = _resources.values
+    storedChars = _resources.values
         .fold(0, (sum, e) => sum + e.ciphertext.length);
     return env.id;
   }
@@ -95,7 +94,7 @@ class BlindServer {
       'owner_id': e.ownerId,
       'version': e.version,
       'readers': e.wraps.map((w) => w.to).toList(),
-      'ciphertext_bytes': unb64u(e.ciphertext).length,
+      'ciphertext_chars': e.ciphertext.length,
       'signature': e.signature == null ? 'none' : 'present',
     };
   }
