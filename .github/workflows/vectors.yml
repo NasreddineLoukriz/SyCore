@@ -17,7 +17,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install generator dependencies
-        run: pip install argon2-cffi cryptography
+        run: pip install -r tools/requirements.txt
 
       - name: Regenerate
         run: python tools/gen_vectors.py

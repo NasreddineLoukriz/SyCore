@@ -1,0 +1,6 @@
+# Dependencies of tools/gen_vectors.py only.
+#
+# The v1 protocol has no server and no Python runtime. These two packages are
+# needed to regenerate vectors/v1.json; the Dart client needs neither.
+argon2-cffi>=23.1.0
+cryptography>=42.0.0

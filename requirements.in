@@ -1,7 +1,10 @@
+# LEGACY — input for `pip-compile` for sycore-backend/ (May 2026 prototype).
+# v1 has no Python dependency; see tools/requirements.txt.
+
 Django>=6.0.5
 graphene-django>=3.2.3
 django-cors-headers
-channels[redis]>=4.2.0
+channels>=4.2.0
 daphne>=4.1.2
 psycopg
 django-graphql-jwt
