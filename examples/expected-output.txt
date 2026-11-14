@@ -1,3 +1,9 @@
+# Reference run of `dart run demo.dart` — exit 0, zero [ FAIL ] lines.
+#
+# Keys, ciphertexts, signatures and timings are freshly random on every run,
+# so this file is not byte-comparable: it shows the structure and the verdict.
+# CI only requires that no line contains FAIL.
+
 
   S Y C O R E  ·  wire format v1
   blind server · smart client · engines are wrap-counts
