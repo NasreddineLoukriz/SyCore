@@ -138,3 +138,8 @@ jobs:
       - name: Analyze the app
         working-directory: apps/sycore_app
         run: flutter analyze
+
+      # Translation parity, {placeholders}, and the English ⇄ Arabic switch.
+      - name: Test the app
+        working-directory: apps/sycore_app
+        run: flutter test

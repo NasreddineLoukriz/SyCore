@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -30,145 +31,155 @@ class _LoginScreenState extends State<LoginScreen> {
       _password.text,
       create: _create,
     );
-    if (ok && mounted) {
-      setState(() => _create = false);
-    }
+    if (ok && mounted) setState(() => _create = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final s = widget.state;
+    final t = context.s;
+    final tx = Theme.of(context).textTheme;
+
     return Scaffold(
-      body: Row(
+      body: Stack(
         children: [
-          Expanded(
-            flex: 5,
-            child: Container(
-              color: SyTheme.surface,
-              padding: const EdgeInsets.all(48),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const _Brand(),
-                  const SizedBox(height: 36),
-                  Text('Encrypted storage you can see.',
-                      style: SyTheme.h1.copyWith(fontSize: 30, height: 1.2)),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: 460,
-                    child: Text(
-                      'The server stores sealed boxes and a list of who may open '
-                      'them. It never holds a key. This app is the client: every '
-                      'encryption happens here, before anything is sent.',
-                      style: SyTheme.body.copyWith(color: SyTheme.muted),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  const _Flow(),
-                ],
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 4,
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(40),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text('Sign in', style: SyTheme.h1),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Each person has their own vault on this machine. '
-                        'Pick one — the passphrase is the only thing that unlocks it.',
-                        style: SyTheme.small,
-                      ),
-                      const SizedBox(height: 22),
-                      for (final p in personas) ...[
-                        _PersonaTile(
-                          persona: p,
-                          selected: p.id == _who.id,
-                          onTap: () => setState(() => _who = p),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                      const SizedBox(height: 18),
-                      TextField(
-                        controller: _password,
-                        obscureText: true,
-                        onSubmitted: (_) => _go(),
-                        decoration: const InputDecoration(
-                          labelText: 'Passphrase',
-                          prefixIcon: Icon(Icons.key_outlined, size: 18),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Argon2id · 64 MiB · 3 iterations — about 0.75 s, on purpose',
-                        style: SyTheme.mono(11.5, SyTheme.muted),
-                      ),
-                      const SizedBox(height: 18),
-                      FilledButton.icon(
-                        onPressed: s.busy ? null : _go,
-                        icon: s.busy
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.lock_open, size: 18),
-                        label: Text(s.busy
-                            ? 'Unlocking…'
-                            : (_create
-                                ? 'Create identity'
-                                : 'Unlock ${_who.name}’s vault')),
-                      ),
-                      const SizedBox(height: 10),
-                      TextButton(
-                        onPressed: s.busy
-                            ? null
-                            : () => setState(() => _create = !_create),
-                        child: Text(
-                          _create
-                              ? 'This device already has an envelope — just unlock'
-                              : 'First time on this device? Create the identity',
-                          style: const TextStyle(fontSize: 12.5),
-                        ),
-                      ),
-                      if (s.error != null) ...[
-                        const SizedBox(height: 10),
-                        ErrorBanner(s.error!),
-                      ],
-                      const SizedBox(height: 14),
-                      Row(
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(48, 64, 48, 56),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1040),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── the claim ─────────────────────────────────
+                    Expanded(
+                      flex: 6,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.dns_outlined,
-                              size: 14,
-                              color: s.online ? SyTheme.ok : SyTheme.danger),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              s.online
-                                  ? 'server ${s.server} · reachable'
-                                  : 'server ${s.server} · not reachable — start server/run.sh',
-                              style: SyTheme.mono(11.5,
-                                  s.online ? SyTheme.muted : SyTheme.danger),
+                          Text(
+                            t.t('app_name').toUpperCase(),
+                            style: tx.titleSmall?.copyWith(
+                              letterSpacing: t.isAr ? 0 : 3,
+                              color: SyTheme.muted,
                             ),
                           ),
-                          IconButton(
-                            onPressed: s.ping,
-                            icon: const Icon(Icons.refresh, size: 16),
-                            tooltip: 'Re-check the server',
+                          const SizedBox(height: 30),
+                          Text(t.t('login_claim'), style: tx.displayLarge),
+                          const SizedBox(height: 20),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 430),
+                            child: Text(
+                              t.t('login_intro'),
+                              style: tx.bodyLarge?.copyWith(
+                                color: SyTheme.inkSoft,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 44),
+                          _Flow(t: t),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 56),
+                    // ── the lock ──────────────────────────────────
+                    Expanded(
+                      flex: 5,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(t.t('sign_in'), style: tx.headlineLarge),
+                          const SizedBox(height: 8),
+                          Text(t.t('login_help'), style: tx.bodySmall),
+                          const SizedBox(height: 26),
+                          for (final p in personas)
+                            _PersonaRow(
+                              persona: p,
+                              t: t,
+                              selected: p.id == _who.id,
+                              onTap: () => setState(() => _who = p),
+                            ),
+                          const SizedBox(height: 24),
+                          TextField(
+                            controller: _password,
+                            obscureText: true,
+                            onSubmitted: (_) => _go(),
+                            style: tx.bodyMedium,
+                            decoration: InputDecoration(
+                              labelText: t.t('passphrase'),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(t.t('kdf_note'), style: tx.labelSmall),
+                          const SizedBox(height: 22),
+                          FilledButton(
+                            onPressed: s.busy ? null : _go,
+                            child: Text(
+                              s.busy
+                                  ? t.t('unlocking')
+                                  : (_create
+                                      ? t.t('create_identity')
+                                      : t.t('unlock',
+                                          {'name': _who.nameIn(t)})),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: TextButton(
+                              onPressed: s.busy
+                                  ? null
+                                  : () => setState(() => _create = !_create),
+                              child: Text(
+                                _create ? t.t('create_on') : t.t('create_off'),
+                                style: tx.bodySmall?.copyWith(
+                                    color: SyTheme.accent),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          if (s.error(t) != null) ...[
+                            Note(s.error(t)!, kind: NoteKind.danger),
+                            const SizedBox(height: 16),
+                          ],
+                          const Divider(color: SyTheme.lineSoft, height: 1),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: StatusLine(
+                                  on: s.online,
+                                  text: s.online
+                                      ? t.t('server_reachable',
+                                          {'url': s.server})
+                                      : t.t('server_unreachable',
+                                          {'url': s.server}),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: s.ping,
+                                icon: const Icon(Icons.refresh, size: 16),
+                                tooltip: t.t('refresh'),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
+            ),
+          ),
+          // the one control that must always be reachable
+          PositionedDirectional(
+            top: 18,
+            end: 24,
+            child: TextButton.icon(
+              onPressed: () =>
+                  appLang.value = t.isAr ? AppLang.en : AppLang.ar,
+              icon: const Icon(Icons.translate, size: 15),
+              label: Text(t.otherLanguageName),
             ),
           ),
         ],
@@ -177,150 +188,111 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-class _Brand extends StatelessWidget {
-  const _Brand();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: SyTheme.accent.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(11),
-            border: Border.all(color: SyTheme.accent.withValues(alpha: 0.5)),
-          ),
-          child: const Icon(Icons.shield_outlined, color: SyTheme.accent, size: 22),
-        ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('SYCORE',
-                style: SyTheme.h1.copyWith(letterSpacing: 4, fontSize: 20)),
-            Text('wire format v1', style: SyTheme.mono(11.5, SyTheme.muted)),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
+/// The wire, in four lines. No boxes, no arrows — just numbered steps.
 class _Flow extends StatelessWidget {
-  const _Flow();
+  const _Flow({required this.t});
+
+  final Strings t;
 
   @override
   Widget build(BuildContext context) {
-    const rows = [
-      ('plaintext', 'this device only', SyTheme.accent),
-      ('AES-256-GCM + AAD', 'bound to project · domain · row · owner · version', SyTheme.violet),
-      ('ciphertext + wraps[]', 'what leaves the device', SyTheme.muted),
-      ('server', 'stores, authorises, never decrypts', SyTheme.warn),
+    final tx = Theme.of(context).textTheme;
+    final rows = [
+      ('01', 'login_flow_plain', 'login_flow_plain_note', SyTheme.ink),
+      ('02', 'login_flow_sealed', 'login_flow_sealed_note', SyTheme.accent),
+      ('03', 'login_flow_wire', 'login_flow_wire_note', SyTheme.muted),
+      ('04', 'login_flow_server', 'login_flow_server_note', SyTheme.warn),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (var i = 0; i < rows.length; i++) ...[
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: rows[i].$3,
-                  shape: BoxShape.circle,
+        for (final r in rows)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 26,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: Text(r.$1,
+                        style: SyTheme.mono(11, SyTheme.faint)),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(
-                width: 170,
-                child: Text(rows[i].$1,
-                    style: TextStyle(
-                        color: rows[i].$3,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13)),
-              ),
-              Expanded(
-                child: Text(rows[i].$2,
-                    style: SyTheme.mono(11.5, SyTheme.muted)),
-              ),
-            ],
-          ),
-          if (i < rows.length - 1)
-            Padding(
-              padding: const EdgeInsets.only(left: 3.5),
-              child: Container(
-                  width: 1, height: 12, color: SyTheme.line),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(t.t(r.$2),
+                          style: tx.titleSmall?.copyWith(color: r.$4)),
+                      Text(t.t(r.$3), style: tx.bodySmall),
+                    ],
+                  ),
+                ),
+              ],
             ),
-        ],
+          ),
       ],
     );
   }
 }
 
-class _PersonaTile extends StatelessWidget {
-  const _PersonaTile({
+class _PersonaRow extends StatelessWidget {
+  const _PersonaRow({
     required this.persona,
+    required this.t,
     required this.selected,
     required this.onTap,
   });
 
   final Persona persona;
+  final Strings t;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final tx = Theme.of(context).textTheme;
     final c = Color(persona.color);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(11),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? c.withValues(alpha: 0.10) : SyTheme.surface,
-          border: Border.all(
-              color: selected ? c.withValues(alpha: 0.65) : SyTheme.line),
-          borderRadius: BorderRadius.circular(11),
+          border: BorderDirectional(
+            start: BorderSide(
+              color: selected ? c : Colors.transparent,
+              width: 2,
+            ),
+            bottom: const BorderSide(color: SyTheme.lineSoft),
+          ),
         ),
+        padding: const EdgeInsetsDirectional.fromSTEB(14, 11, 10, 11),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: c.withValues(alpha: 0.18),
-              child: Text(persona.name[0],
-                  style: TextStyle(
-                      color: c, fontWeight: FontWeight.w800, fontSize: 13)),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(persona.name, style: SyTheme.h2.copyWith(fontSize: 13.5)),
-                  Text(persona.role, style: SyTheme.mono(11, SyTheme.muted)),
+                  Text(
+                    persona.nameIn(t),
+                    style: tx.titleMedium?.copyWith(
+                      color: selected ? SyTheme.ink : SyTheme.inkSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(t.t(persona.roleKey), style: tx.bodySmall),
                 ],
               ),
             ),
-            if (selected)
-              Icon(Icons.check_circle, size: 16, color: c)
-            else
-              Text(persona.id, style: SyTheme.mono(11, SyTheme.line)),
+            Text(
+              persona.id,
+              style: SyTheme.mono(11,
+                  selected ? SyTheme.inkSoft : SyTheme.faint),
+            ),
           ],
         ),
       ),
     );
   }
-}
-
-/// Used by the shell too.
-class BrandMark extends StatelessWidget {
-  const BrandMark({super.key, this.compact = false});
-
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) => const _Brand();
 }

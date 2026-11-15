@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sycore_client/sycore_client.dart';
 
+import '../l10n.dart';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -22,8 +23,9 @@ class _HosnScreenState extends State<HosnScreen> {
   String? plain;
   Map<String, dynamic>? wire;
   bool loading = true;
-  String? localError;
   bool busy = false;
+  String? _errKey;
+  Map<String, Object?> _errVars = const {};
 
   AppState get s => widget.state;
 
@@ -33,14 +35,22 @@ class _HosnScreenState extends State<HosnScreen> {
     _load();
   }
 
+  void _fail(Object e) {
+    final d = s.describe(e);
+    setState(() {
+      _errKey = d.$1;
+      _errVars = d.$2;
+    });
+  }
+
   Future<void> _load() async {
     setState(() => loading = true);
     try {
-      final r = await s.sdk.hosn
-          .inbox(project: AppState.project, domain: domain);
+      final r =
+          await s.sdk.hosn.inbox(project: AppState.project, domain: domain);
       if (mounted) setState(() => rows = r);
     } catch (e) {
-      if (mounted) setState(() => localError = s.describe(e));
+      if (mounted) _fail(e);
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -51,7 +61,7 @@ class _HosnScreenState extends State<HosnScreen> {
       selected = m;
       plain = null;
       wire = null;
-      localError = null;
+      _errKey = null;
       busy = true;
     });
     try {
@@ -64,44 +74,45 @@ class _HosnScreenState extends State<HosnScreen> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => localError = s.describe(e));
+      if (mounted) _fail(e);
     } finally {
       if (mounted) setState(() => busy = false);
     }
   }
 
   Future<void> _compose() async {
+    final t = context.s;
     final to = ValueNotifier<String>(
         personas.firstWhere((p) => p.id != s.userId).id);
-    final text = TextEditingController(text: 'Surgery: 15 January, 8:30, Mustapha Pacha');
+    final text = TextEditingController(
+        text: 'Surgery: 15 January, 8:30, Mustapha Pacha');
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: SyTheme.surface,
-        title: const Text('HOSN · one recipient'),
+        title: Text(t.t('compose_title')),
         content: SizedBox(
           width: 460,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'The content key is written twice: once for you (under the vault '
-                'key) and once for the recipient (under X25519). The server sees '
-                'two sealed boxes and a list of names.',
-                style: SyTheme.small,
-              ),
-              const SizedBox(height: 14),
+              Text(t.t('compose_note'),
+                  style: Theme.of(ctx).textTheme.bodySmall),
+              const SizedBox(height: 18),
               ValueListenableBuilder<String>(
                 valueListenable: to,
                 builder: (_, v, __) => DropdownButtonFormField<String>(
                   initialValue: v,
-                  decoration: const InputDecoration(labelText: 'To'),
-                  dropdownColor: SyTheme.surfaceAlt,
+                  decoration: InputDecoration(labelText: t.t('to')),
+                  dropdownColor: SyTheme.raised,
                   items: [
                     for (final p in personas)
                       if (p.id != s.userId)
-                        DropdownMenuItem(value: p.id, child: Text('${p.name} · ${p.id}')),
+                        DropdownMenuItem(
+                          value: p.id,
+                          child: Text('${p.nameIn(t)} · ${p.id}'),
+                        ),
                   ],
                   onChanged: (x) => to.value = x ?? v,
                 ),
@@ -110,18 +121,19 @@ class _HosnScreenState extends State<HosnScreen> {
               TextField(
                 controller: text,
                 maxLines: 4,
-                decoration: const InputDecoration(labelText: 'Message'),
+                decoration: InputDecoration(labelText: t.t('message')),
               ),
             ],
           ),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(t.t('cancel')),
+          ),
+          FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.send, size: 16),
-            label: const Text('Encrypt & send'),
+            child: Text(t.t('encrypt_send')),
           ),
         ],
       ),
@@ -135,186 +147,208 @@ class _HosnScreenState extends State<HosnScreen> {
         ));
     if (env != null) {
       await _load();
-      setState(() => localError = null);
+      if (mounted) setState(() => _errKey = null);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (s.error != null) ErrorBanner(s.error!),
-          Expanded(
+    final t = context.s;
+    final tx = Theme.of(context).textTheme;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(40, 30, 40, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              PageHead(
+                title: t.t('nav_messages'),
+                blurb: t.t('nav_blurb_messages'),
+                actions: [
+                  Tag('$domain · ${t.t('domain_health')}'),
+                  OutlinedButton(
+                    onPressed: _compose,
+                    child: Text(t.t('new_message')),
+                  ),
+                ],
+              ),
+              if (s.error(t) != null) ...[
+                Note(s.error(t)!, kind: NoteKind.danger),
+                const SizedBox(height: 18),
+              ],
+            ],
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ── the inbox ───────────────────────────────────
                 SizedBox(
-                  width: 380,
-                  child: Panel(
-                    title: 'Inbox · $domain',
-                    trailing: Row(
-                      children: [
-                        IconButton(
+                  width: 350,
+                  child: ListView(
+                    padding: const EdgeInsets.only(top: 4, bottom: 40),
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text('${t.t('inbox')} · $domain',
+                                style: tx.labelMedium),
+                          ),
+                          IconButton(
                             onPressed: _load,
-                            icon: const Icon(Icons.refresh, size: 17),
-                            tooltip: 'Reload'),
-                        const SizedBox(width: 4),
-                        FilledButton.icon(
-                          onPressed: _compose,
-                          icon: const Icon(Icons.add, size: 15),
-                          label: const Text('New'),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-                    child: loading
-                        ? const Padding(
-                            padding: EdgeInsets.all(30),
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        : rows.isEmpty
-                            ? const EmptyState(
-                                'No rows this user may see.\nCompose one, or sign in as the recipient.')
-                            : Column(
-                                children: [
-                                  for (final m in rows)
-                                    _RowTile(
-                                      meta: m,
-                                      me: s.userId,
-                                      selected: selected?.id == m.id,
-                                      onTap: () => _open(m),
-                                    ),
-                                ],
-                              ),
+                            icon: const Icon(Icons.refresh, size: 16),
+                            tooltip: t.t('refresh'),
+                          ),
+                        ],
+                      ),
+                      if (loading)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 28),
+                          child: LinearProgressIndicator(),
+                        )
+                      else if (rows.isEmpty)
+                        Blank(t.t('empty_inbox'))
+                      else
+                        for (final m in rows)
+                          RowLine(
+                            onTap: () => _open(m),
+                            selected: selected?.id == m.id,
+                            trailing: Text(stamp(m.updatedAt),
+                                style: tx.labelSmall),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(m.id,
+                                    style: SyTheme.mono(11.5, SyTheme.ink)),
+                                const SizedBox(height: 3),
+                                Text(
+                                  t.t('from_to', {
+                                    'from': m.ownerId,
+                                    'to': m.readers
+                                        .where((r) => r != m.ownerId)
+                                        .join(', '),
+                                  }),
+                                  style: tx.labelSmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 14),
+                Container(
+                  width: 1,
+                  margin: const EdgeInsetsDirectional.only(start: 28, end: 32),
+                  height: double.infinity,
+                  color: SyTheme.lineSoft,
+                ),
+                // ── the row ─────────────────────────────────────
                 Expanded(
-                  child: Panel(
-                    title: selected == null
-                        ? 'Open a row'
-                        : 'Row ${selected!.id}',
-                    trailing: selected == null
-                        ? null
-                        : Pill(
-                            plain != null ? 'opened locally' : 'refused',
-                            color: plain != null ? SyTheme.ok : SyTheme.danger,
+                  child: ListView(
+                    padding: const EdgeInsets.only(top: 4, bottom: 40),
+                    children: [
+                      if (selected == null) ...[
+                        const SizedBox(height: 6),
+                        Text(t.t('open_a_row'), style: tx.headlineSmall),
+                        const SizedBox(height: 8),
+                        Text(t.t('open_hint'), style: tx.bodySmall),
+                      ] else ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(selected!.id,
+                                  style: SyTheme.mono(13, SyTheme.ink)),
+                            ),
+                            Tag(
+                              plain != null
+                                  ? t.t('opened_locally')
+                                  : (_errKey != null
+                                      ? t.t('refused')
+                                      : '…'),
+                              color: plain != null
+                                  ? SyTheme.ok
+                                  : SyTheme.danger,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        if (_errKey != null) ...[
+                          Note(t.t(_errKey!, _errVars),
+                              kind: NoteKind.danger),
+                          const SizedBox(height: 20),
+                        ],
+                        if (busy)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 18),
+                            child: LinearProgressIndicator(),
                           ),
-                    child: busy
-                        ? const Padding(
-                            padding: EdgeInsets.all(40),
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        : selected == null
-                            ? const EmptyState(
-                                'The server returns a sealed box.\nThe key is derived here, not there.',
-                                icon: Icons.lock_outline,
-                              )
-                            : SingleChildScrollView(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    if (localError != null) ErrorBanner(localError!),
-                                    if (plain != null) ...[
-                                      Text('Plaintext, recovered on this device',
-                                          style: SyTheme.small),
-                                      const SizedBox(height: 8),
-                                      Container(
-                                        padding: const EdgeInsets.all(14),
-                                        decoration: BoxDecoration(
-                                          color: SyTheme.accent.withValues(alpha: 0.07),
-                                          border: Border.all(
-                                              color: SyTheme.accent.withValues(alpha: 0.35)),
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: SelectableText(plain!,
-                                            style: SyTheme.body.copyWith(fontSize: 15)),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text('The same row, as the server stores it',
-                                          style: SyTheme.small),
-                                      const SizedBox(height: 8),
-                                      if (wire != null)
-                                        MonoBlock(AppState.prettyJson(
-                                            Map<String, dynamic>.from(wire!))),
-                                      const SizedBox(height: 16),
-                                    ],
-                                    Kv('owner', selected!.ownerId, mono: true),
-                                    Kv('readers', selected!.readers.join(', '), mono: true),
-                                    Kv('wraps', '${selected!.readers.length}', mono: true),
-                                    Kv('ciphertext', '${selected!.ciphertextChars} chars', mono: true),
-                                    Kv('version', 'v${selected!.version}', mono: true),
-                                    Kv('updated', stamp(selected!.updatedAt), mono: true),
-                                  ],
-                                ),
+                        if (plain != null) ...[
+                          Text(t.t('plaintext'), style: tx.labelSmall),
+                          const SizedBox(height: 8),
+                          Container(
+                            decoration: const BoxDecoration(
+                              border: BorderDirectional(
+                                start: BorderSide(
+                                    color: SyTheme.accent, width: 2),
                               ),
+                            ),
+                            padding: const EdgeInsetsDirectional.only(
+                                start: 14, top: 2, bottom: 2),
+                            child: SelectableText(
+                              plain!,
+                              style: tx.bodyLarge?.copyWith(
+                                fontSize: (tx.bodyLarge?.fontSize ?? 15) + 1,
+                                color: SyTheme.ink,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 26),
+                          Section(
+                            title: t.t('as_stored'),
+                            child: wire == null
+                                ? const SizedBox.shrink()
+                                : Code(AppState.prettyJson(
+                                    Map<String, dynamic>.from(wire!))),
+                          ),
+                        ],
+                        Section(
+                          first: plain == null,
+                          title: t.t('metadata'),
+                          child: Column(
+                            children: [
+                              Field(t.t('owner'), selected!.ownerId,
+                                  mono: true),
+                              Field(t.t('readers'),
+                                  selected!.readers.join(', '),
+                                  mono: true),
+                              Field(t.t('wraps'),
+                                  '${selected!.readers.length}',
+                                  mono: true),
+                              Field(t.t('ciphertext'),
+                                  t.t('chars', {'n': selected!.ciphertextChars}),
+                                  mono: true),
+                              Field(t.t('version'),
+                                  t.t('v', {'n': selected!.version}),
+                                  mono: true),
+                              Field(t.t('updated'),
+                                  stamp(selected!.updatedAt), mono: true),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RowTile extends StatelessWidget {
-  const _RowTile({
-    required this.meta,
-    required this.me,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final ResourceMeta meta;
-  final String me;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final mine = meta.ownerId == me;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(9),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        decoration: BoxDecoration(
-          color: selected ? SyTheme.accent.withValues(alpha: 0.10) : SyTheme.surfaceAlt,
-          border: Border.all(
-              color: selected ? SyTheme.accent.withValues(alpha: 0.5) : SyTheme.line),
-          borderRadius: BorderRadius.circular(9),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(mine ? Icons.outbox : Icons.inbox,
-                    size: 14, color: mine ? SyTheme.accent : SyTheme.violet),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Text(meta.id,
-                      overflow: TextOverflow.ellipsis,
-                      style: SyTheme.mono(12, SyTheme.text)),
-                ),
-                Text(stamp(meta.updatedAt), style: SyTheme.mono(10.5, SyTheme.muted)),
-              ],
-            ),
-            const SizedBox(height: 5),
-            Text(
-              '${meta.ownerId} → ${meta.readers.where((r) => r != meta.ownerId).join(', ')}'
-              '   ·   ${meta.ciphertextChars} chars',
-              style: SyTheme.mono(10.5, SyTheme.muted),
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }

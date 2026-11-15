@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sycore_client/sycore_client.dart';
 
+import '../l10n.dart';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -15,16 +16,18 @@ class OperatorScreen extends StatefulWidget {
 }
 
 class _OperatorScreenState extends State<OperatorScreen> {
+  static const domains = ['health', 'expenses', 'blog'];
+
   Map<String, dynamic> stats = const {};
   List<List<ResourceMeta>> byDomain = const [];
   List<Map<String, dynamic>> audit = const [];
   Map<String, dynamic>? wire;
   ResourceMeta? selected;
-  String? localError;
+  String? _errKey;
+  Map<String, Object?> _errVars = const {};
   bool loading = true;
 
   AppState get s => widget.state;
-  static const domains = ['health', 'expenses', 'blog'];
 
   @override
   void initState() {
@@ -47,11 +50,17 @@ class _OperatorScreenState extends State<OperatorScreen> {
           stats = (health['stats'] as Map).cast<String, dynamic>();
           byDomain = rows;
           audit = a;
-          localError = null;
+          _errKey = null;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => localError = s.describe(e));
+      final d = s.describe(e);
+      if (mounted) {
+        setState(() {
+          _errKey = d.$1;
+          _errVars = d.$2;
+        });
+      }
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -67,158 +76,168 @@ class _OperatorScreenState extends State<OperatorScreen> {
       final j = Map<String, dynamic>.from(env.toJson());
       final ct = j['ciphertext'] as String? ?? '';
       j['ciphertext'] = ct.length <= 160 ? ct : '${ct.substring(0, 160)}…';
-      j['wraps'] = (j['wraps'] as List)
-          .map((w) {
-            final m2 = Map<String, dynamic>.from(w as Map);
-            final c = m2['ct'] as String;
-            m2['ct'] = c.length <= 48 ? c : '${c.substring(0, 48)}…';
-            return m2;
-          })
-          .toList();
+      j['wraps'] = (j['wraps'] as List).map((w) {
+        final m2 = Map<String, dynamic>.from(w as Map);
+        final c = m2['ct'] as String;
+        m2['ct'] = c.length <= 48 ? c : '${c.substring(0, 48)}…';
+        return m2;
+      }).toList();
       if (mounted) setState(() => wire = j);
     } catch (e) {
-      if (mounted) setState(() => localError = s.describe(e));
+      final d = s.describe(e);
+      if (mounted) {
+        setState(() {
+          _errKey = d.$1;
+          _errVars = d.$2;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = context.s;
+    final tx = Theme.of(context).textTheme;
+
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(40, 30, 40, 48),
       children: [
-        if (localError != null) ErrorBanner(localError!),
-        Row(
-          children: [
-            _Stat('identities', stats['identities'], SyTheme.violet),
-            const SizedBox(width: 10),
-            _Stat('resources', stats['resources'], SyTheme.accent),
-            const SizedBox(width: 10),
-            _Stat('wraps', stats['wraps'], SyTheme.ok),
-            const SizedBox(width: 10),
-            _Stat('domains', stats['domains'], SyTheme.warn),
-            const SizedBox(width: 10),
-            _Stat('audit rows', stats['audit'], SyTheme.muted),
+        PageHead(
+          title: t.t('nav_operator'),
+          blurb: t.t('nav_blurb_operator'),
+          actions: [
+            Tag(AppState.project),
+            OutlinedButton(
+              onPressed: _load,
+              child: Text(t.t('refresh')),
+            ),
           ],
         ),
-        const SizedBox(height: 14),
+        if (_errKey != null) ...[
+          Note(t.t(_errKey!, _errVars), kind: NoteKind.danger),
+          const SizedBox(height: 22),
+        ],
+        Row(
+          children: [
+            _Figure('${stats['identities'] ?? 0}', t.t('stats_identities')),
+            _Figure('${stats['resources'] ?? 0}', t.t('stats_resources')),
+            _Figure('${stats['wraps'] ?? 0}', t.t('stats_wraps')),
+            _Figure('${stats['domains'] ?? 0}', t.t('stats_domains')),
+            _Figure('${stats['audit'] ?? 0}', t.t('stats_audit')),
+          ],
+        ),
+        const SizedBox(height: 26),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── rows ────────────────────────────────────────────
             Expanded(
-              flex: 5,
-              child: Panel(
-                title: 'Rows in the database',
-                trailing: IconButton(
-                    onPressed: _load, icon: const Icon(Icons.refresh, size: 17)),
+              flex: 6,
+              child: Section(
+                first: true,
+                title: t.t('rows_in_db'),
                 child: loading
                     ? const Padding(
-                        padding: EdgeInsets.all(30),
-                        child: Center(child: CircularProgressIndicator()),
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: LinearProgressIndicator(),
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           for (var i = 0; i < domains.length; i++) ...[
-                            Text(domains[i].toUpperCase(),
-                                style: SyTheme.mono(10.5, SyTheme.muted)
-                                    .copyWith(letterSpacing: 1.4)),
-                            const SizedBox(height: 6),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                domains[i],
+                                style: SyTheme.mono(10.5, SyTheme.faint),
+                              ),
+                            ),
                             if (byDomain[i].isEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
-                                child: Text('— empty —', style: SyTheme.small),
+                                child: Text(t.t('empty'),
+                                    style: tx.bodySmall
+                                        ?.copyWith(color: SyTheme.faint)),
                               )
                             else
                               for (final m in byDomain[i])
-                                InkWell(
+                                RowLine(
                                   onTap: () => _inspect(m),
-                                  child: Container(
-                                    margin: const EdgeInsets.only(bottom: 5),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 9),
-                                    decoration: BoxDecoration(
-                                      color: selected?.id == m.id
-                                          ? SyTheme.accent.withValues(alpha: 0.08)
-                                          : SyTheme.surfaceAlt,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                          color: selected?.id == m.id
-                                              ? SyTheme.accent.withValues(alpha: 0.45)
-                                              : SyTheme.line),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(m.id,
-                                              style: SyTheme.mono(11.5, SyTheme.text)),
-                                        ),
-                                        Text(
-                                          '${m.readers.length} readers · '
-                                          '${m.ciphertextChars} chars',
-                                          style: SyTheme.mono(10.5, SyTheme.muted),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        if (m.signed)
-                                          const Pill('signed', color: SyTheme.ok)
-                                        else
-                                          const Pill('sealed', color: SyTheme.accent),
-                                      ],
-                                    ),
+                                  selected: selected?.id == m.id,
+                                  trailing: m.signed
+                                      ? Tag(t.t('signed'), color: SyTheme.ok)
+                                      : Tag(t.t('sealed'),
+                                          color: SyTheme.accent),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(m.id,
+                                          style: SyTheme.mono(
+                                              11.5, SyTheme.ink)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${t.t('readers_n', {'n': m.readers.length})}'
+                                        ' · ${t.t('chars', {'n': m.ciphertextChars})}',
+                                        style: tx.labelSmall,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 14),
                           ],
                         ],
                       ),
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 56),
+            // ── wire + audit ────────────────────────────────────
             Expanded(
               flex: 4,
               child: Column(
                 children: [
-                  Panel(
-                    title: selected == null
-                        ? 'Wire view'
-                        : 'Wire view · ${selected!.id}',
+                  Section(
+                    first: true,
+                    title: t.t('wire_view'),
                     child: wire == null
-                        ? const EmptyState(
-                            'Select a row.\nThis is what the operator can read.',
-                            icon: Icons.data_object)
-                        : MonoBlock(AppState.prettyJson(wire!), maxHeight: 320),
+                        ? Blank(t.t('wire_hint'))
+                        : Code(AppState.prettyJson(wire!), maxHeight: 320),
                   ),
-                  const SizedBox(height: 14),
-                  Panel(
-                    title: 'Audit',
+                  Section(
+                    title: t.t('audit'),
                     child: SizedBox(
                       height: 220,
                       child: ListView(
                         children: [
                           for (final e in audit)
                             Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 3),
+                              padding: const EdgeInsets.only(bottom: 5),
                               child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   SizedBox(
-                                    width: 54,
-                                    child: Text(stamp(e['at'] as String),
-                                        style: SyTheme.mono(10.5)),
+                                    width: 58,
+                                    child: Text(
+                                      stamp(e['at'] as String),
+                                      style: tx.labelSmall,
+                                    ),
                                   ),
                                   Expanded(
                                     child: Text(
                                       '${e['action']}',
                                       style: SyTheme.mono(
                                         11,
-                                        (e['action'] as String).contains('denied') ||
+                                        (e['action'] as String)
+                                                    .contains('denied') ||
                                                 (e['action'] as String)
                                                     .contains('rejected')
                                             ? SyTheme.danger
-                                            : SyTheme.text,
+                                            : SyTheme.inkSoft,
                                       ),
                                     ),
                                   ),
                                   Text('${e['actor']}',
-                                      style: SyTheme.mono(10.5, SyTheme.muted)),
+                                      style: tx.labelSmall),
                                 ],
                               ),
                             ),
@@ -231,16 +250,11 @@ class _OperatorScreenState extends State<OperatorScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 14),
-        Panel(
-          title: 'The point',
-          child: Text(
-            'Everything above is metadata: who owns a row, who may read it, '
-            'when, how large. The ciphertext column is the only thing that '
-            'matters, and no endpoint returns it to a user who is not in its '
-            'wraps. There is no admin route that decrypts, because there is no '
-            'key to decrypt with.',
-            style: SyTheme.body.copyWith(color: SyTheme.muted),
+        Section(
+          title: t.t('the_point'),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 780),
+            child: Text(t.t('the_point_note'), style: tx.bodyMedium),
           ),
         ),
       ],
@@ -248,30 +262,31 @@ class _OperatorScreenState extends State<OperatorScreen> {
   }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat(this.label, this.value, this.color);
+/// A number and its name, separated by hairlines rather than boxes.
+class _Figure extends StatelessWidget {
+  const _Figure(this.value, this.label);
 
+  final String value;
   final String label;
-  final Object? value;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
+    final tx = Theme.of(context).textTheme;
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: SyTheme.surface,
-          border: Border.all(color: SyTheme.line),
-          borderRadius: BorderRadius.circular(11),
+        decoration: const BoxDecoration(
+          border: BorderDirectional(
+            start: BorderSide(color: SyTheme.lineSoft),
+          ),
         ),
+        padding: const EdgeInsetsDirectional.only(start: 14, top: 2, bottom: 2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${value ?? 0}',
-                style: TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.w800, color: color)),
-            Text(label, style: SyTheme.mono(10.5)),
+            Text(value,
+                style: SyTheme.display(22, weight: FontWeight.w700)),
+            const SizedBox(height: 2),
+            Text(label, style: tx.labelSmall),
           ],
         ),
       ),

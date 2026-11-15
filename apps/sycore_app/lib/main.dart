@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'l10n.dart';
 import 'screens/hosn_screen.dart';
 import 'screens/jahr_screen.dart';
 import 'screens/login_screen.dart';
@@ -12,7 +14,14 @@ import 'state.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
-void main() => runApp(const SycoreApp());
+void main() {
+  // The switch in the header is the real control; this only lets a rehearsal
+  // start in one language:  SYCORE_LANG=ar ./sycore_app
+  if (Platform.environment['SYCORE_LANG'] == 'ar') {
+    appLang.value = AppLang.ar;
+  }
+  runApp(const SycoreApp());
+}
 
 class SycoreApp extends StatefulWidget {
   const SycoreApp({super.key});
@@ -39,7 +48,7 @@ class _SycoreAppState extends State<SycoreApp> {
     if (user == null || user.isEmpty) return;
     final tab = int.tryParse(Platform.environment['SYCORE_DEMO_TAB'] ?? '');
     if (tab != null) {
-      // Set before signing in: the Shell is created the moment the account
+      // Set before signing in: the shell is created the moment the account
       // becomes available, so it must already know which tab to open.
       _startTab = tab.clamp(0, _tabs.length - 1);
     }
@@ -54,40 +63,46 @@ class _SycoreAppState extends State<SycoreApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SYCORE',
-      debugShowCheckedModeBanner: false,
-      theme: SyTheme.build(),
-      home: AnimatedBuilder(
-        animation: state,
-        builder: (_, __) =>
-            state.signedIn
+    return ValueListenableBuilder<AppLang>(
+      valueListenable: appLang,
+      builder: (context, lang, _) {
+        final t = Strings(lang);
+        return MaterialApp(
+          title: t.t('app_name'),
+          debugShowCheckedModeBanner: false,
+          theme: SyTheme.build(ar: t.isAr),
+          locale: Locale(t.isAr ? 'ar' : 'en'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: AnimatedBuilder(
+            animation: state,
+            builder: (_, __) => state.signedIn
                 ? Shell(state: state, startTab: _startTab)
                 : LoginScreen(state: state),
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
 class _Tab {
-  const _Tab(this.icon, this.label, this.blurb, this.build);
-  final IconData icon;
-  final String label;
-  final String blurb;
+  const _Tab(this.labelKey, this.blurbKey, this.build);
+  final String labelKey;
+  final String blurbKey;
   final Widget Function(AppState) build;
 }
 
 final _tabs = <_Tab>[
-  _Tab(Icons.lock_outline, 'Vault',
-      'One vault key, many devices, no re-encryption', (s) => VaultScreen(state: s)),
-  _Tab(Icons.mail_outline, 'Messages',
-      'HOSN · two readers: you and one person', (s) => HosnScreen(state: s)),
-  _Tab(Icons.groups_outlined, 'Group',
-      'SAMAM · an epoch key per membership change', (s) => SamamScreen(state: s)),
-  _Tab(Icons.public, 'Public',
-      'JAHR · public content, signed authorship', (s) => JahrScreen(state: s)),
-  _Tab(Icons.dns_outlined, 'Operator',
-      'What the server can actually see', (s) => OperatorScreen(state: s)),
+  _Tab('nav_vault', 'nav_blurb_vault', (s) => VaultScreen(state: s)),
+  _Tab('nav_messages', 'nav_blurb_messages', (s) => HosnScreen(state: s)),
+  _Tab('nav_group', 'nav_blurb_group', (s) => SamamScreen(state: s)),
+  _Tab('nav_public', 'nav_blurb_public', (s) => JahrScreen(state: s)),
+  _Tab('nav_operator', 'nav_blurb_operator', (s) => OperatorScreen(state: s)),
 ];
 
 class Shell extends StatefulWidget {
@@ -103,162 +118,106 @@ class Shell extends StatefulWidget {
 class _ShellState extends State<Shell> {
   late int index = widget.startTab;
 
+  AppState get s => widget.state;
+
   @override
   void didUpdateWidget(covariant Shell old) {
     super.didUpdateWidget(old);
     if (old.startTab != widget.startTab) index = widget.startTab;
   }
 
-  AppState get s => widget.state;
-
   @override
   Widget build(BuildContext context) {
+    final t = context.s;
+    final tx = Theme.of(context).textTheme;
     final persona = personas.where((p) => p.id == s.userId).firstOrNull;
-    final color = Color(persona?.color ?? 0xFF4DD4C6);
+    final color = Color(persona?.color ?? 0xFF35564A);
 
     return Scaffold(
-      body: Row(
+      body: Column(
         children: [
+          // ── masthead ───────────────────────────────────────────
           Container(
-            width: 236,
             decoration: const BoxDecoration(
-              color: SyTheme.surface,
-              border: Border(right: BorderSide(color: SyTheme.line)),
+              border: Border(bottom: BorderSide(color: SyTheme.line)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            padding: const EdgeInsetsDirectional.fromSTEB(28, 0, 20, 0),
+            height: 66,
+            child: Row(
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.shield_outlined,
-                          color: SyTheme.accent, size: 20),
-                      const SizedBox(width: 8),
-                      Text('SYCORE',
-                          style: SyTheme.h1
-                              .copyWith(fontSize: 16, letterSpacing: 3)),
-                    ],
-                  ),
+                Text(
+                  t.t('app_name'),
+                  style: SyTheme.display(t.isAr ? 20 : 21,
+                      weight: FontWeight.w700),
                 ),
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 12),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: SyTheme.surfaceAlt,
-                    border: Border.all(color: SyTheme.line),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 15,
-                        backgroundColor: color.withValues(alpha: 0.18),
-                        child: Text(
-                          (persona?.name ?? '?')[0],
-                          style: TextStyle(
-                              color: color,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(persona?.name ?? s.userId,
-                                style: SyTheme.h2.copyWith(fontSize: 13)),
-                            Text(s.userId, style: SyTheme.mono(10.5)),
-                          ],
-                        ),
-                      ),
-                      Pill(s.account!.deviceId, color: color),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
-                for (var i = 0; i < _tabs.length; i++)
-                  _NavItem(
-                    icon: _tabs[i].icon,
-                    label: _tabs[i].label,
-                    selected: i == index,
-                    onTap: () => setState(() => index = i),
-                  ),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.circle,
-                              size: 8,
-                              color: s.online ? SyTheme.ok : SyTheme.danger),
-                          const SizedBox(width: 7),
-                          Expanded(
-                            child: Text(
-                              s.online ? 'server reachable' : 'server offline',
-                              style: SyTheme.mono(10.5,
-                                  s.online ? SyTheme.muted : SyTheme.danger),
-                            ),
+                const SizedBox(width: 22),
+                Container(width: 1, height: 20, color: SyTheme.line),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < _tabs.length; i++)
+                          _NavItem(
+                            label: t.t(_tabs[i].labelKey),
+                            selected: i == index,
+                            onTap: () => setState(() => index = i),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text('build 0.1.0 · wire v1', style: SyTheme.mono(10)),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: s.signOut,
-                        icon: const Icon(Icons.lock, size: 14),
-                        label: const Text('Lock vault'),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => appLang.value =
+                      t.isAr ? AppLang.en : AppLang.ar,
+                  icon: const Icon(Icons.translate, size: 15),
+                  label: Text(t.otherLanguageName),
+                ),
+                const SizedBox(width: 10),
+                Container(width: 1, height: 20, color: SyTheme.line),
+                const SizedBox(width: 14),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Dot(color: color),
+                        const SizedBox(width: 6),
+                        Text(
+                          persona?.nameIn(t) ?? s.userId,
+                          style: tx.titleSmall?.copyWith(color: SyTheme.ink),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      '${s.userId} · ${s.account!.deviceId}',
+                      style: tx.labelSmall,
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                Tooltip(
+                  message: t.t('lock_vault'),
+                  child: IconButton(
+                    onPressed: s.signOut,
+                    icon: const Icon(Icons.lock_outline, size: 17),
                   ),
                 ),
               ],
             ),
           ),
+          if (s.busy) const LinearProgressIndicator(minHeight: 1.5),
+          // ── page ──────────────────────────────────────────────
           Expanded(
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(24, 18, 24, 16),
-                  decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: SyTheme.line)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(_tabs[index].label, style: SyTheme.h1),
-                            Text(_tabs[index].blurb,
-                                style: SyTheme.mono(11.5, SyTheme.muted)),
-                          ],
-                        ),
-                      ),
-                      Pill('project ${AppState.project}', color: SyTheme.violet),
-                      const SizedBox(width: 8),
-                      Pill('fingerprint ${s.account!.fingerprint}',
-                          color: SyTheme.muted),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        onPressed: s.refreshHealth,
-                        icon: const Icon(Icons.sync, size: 17),
-                        tooltip: 'Refresh server state',
-                      ),
-                    ],
-                  ),
-                ),
-                if (s.busy) const LinearProgressIndicator(minHeight: 2),
-                Expanded(
-                  key: ValueKey(index),
-                  child: _tabs[index].build(s),
-                ),
-              ],
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1160),
+                key: ValueKey(index),
+                child: _tabs[index].build(s),
+              ),
             ),
           ),
         ],
@@ -269,46 +228,35 @@ class _ShellState extends State<Shell> {
 
 class _NavItem extends StatelessWidget {
   const _NavItem({
-    required this.icon,
     required this.label,
     required this.selected,
     required this.onTap,
   });
 
-  final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(9),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-          decoration: BoxDecoration(
-            color: selected ? SyTheme.accent.withValues(alpha: 0.10) : null,
-            borderRadius: BorderRadius.circular(9),
-            border: Border.all(
-                color: selected
-                    ? SyTheme.accent.withValues(alpha: 0.35)
-                    : Colors.transparent),
+    final tx = Theme.of(context).textTheme;
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsetsDirectional.fromSTEB(12, 22, 12, 20),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: selected ? SyTheme.ink : Colors.transparent,
+              width: 1.5,
+            ),
           ),
-          child: Row(
-            children: [
-              Icon(icon,
-                  size: 17, color: selected ? SyTheme.accent : SyTheme.muted),
-              const SizedBox(width: 11),
-              Text(label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: selected ? SyTheme.text : SyTheme.muted,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  )),
-            ],
+        ),
+        child: Text(
+          label,
+          style: tx.titleSmall?.copyWith(
+            color: selected ? SyTheme.ink : SyTheme.muted,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
           ),
         ),
       ),

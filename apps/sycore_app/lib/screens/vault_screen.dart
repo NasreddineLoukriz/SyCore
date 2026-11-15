@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -16,9 +17,11 @@ class VaultScreen extends StatefulWidget {
 class _VaultScreenState extends State<VaultScreen> {
   List<String> devices = const [];
   bool _showEnvelope = false;
-  String? _note;
+  String? _noteKey;
+  Map<String, Object?> _noteVars = const {};
 
   AppState get s => widget.state;
+  Strings get t => context.s;
 
   @override
   void initState() {
@@ -33,38 +36,33 @@ class _VaultScreenState extends State<VaultScreen> {
     } catch (_) {}
   }
 
+  void _note(String key, [Map<String, Object?>? vars]) =>
+      setState(() {
+        _noteKey = key;
+        _noteVars = vars ?? const {};
+      });
+
   Future<void> _addDevice() async {
+    final t = this.t;
     final name = TextEditingController(text: 'phone');
     final pass = TextEditingController(text: AppState.demoPassword);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: SyTheme.surface,
-        title: const Text('Add a device'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'A new envelope around the same vault key. No message is '
-              're-encrypted, and this device keeps its own Argon2id salt.',
-              style: SyTheme.small,
-            ),
-            const SizedBox(height: 14),
-            TextField(
-                controller: name,
-                decoration: const InputDecoration(labelText: 'Device name')),
-            const SizedBox(height: 10),
-            TextField(
-                controller: pass,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Passphrase')),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true), child: const Text('Add')),
+    final ok = await showSheet(
+      context,
+      title: t.t('add_device'),
+      note: t.t('add_device_note'),
+      confirmLabel: t.t('add'),
+      body: Column(
+        children: [
+          TextField(
+            controller: name,
+            decoration: InputDecoration(labelText: t.t('device_name')),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: pass,
+            obscureText: true,
+            decoration: InputDecoration(labelText: t.t('passphrase')),
+          ),
         ],
       ),
     );
@@ -75,44 +73,32 @@ class _VaultScreenState extends State<VaultScreen> {
     });
     if (done == true) {
       await _load();
-      setState(() => _note =
-          'Device “${name.text.trim()}” now holds its own envelope for the same VK.');
+      _note('device_added', {'name': name.text.trim()});
     }
   }
 
   Future<void> _changePassword() async {
+    final t = this.t;
     final old = TextEditingController(text: AppState.demoPassword);
     final next = TextEditingController(text: 'a new passphrase');
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: SyTheme.surface,
-        title: const Text('Change passphrase'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'The vault key is re-wrapped under the new passphrase. Not one '
-              'content key, and not one ciphertext, is touched.',
-              style: SyTheme.small,
-            ),
-            const SizedBox(height: 14),
-            TextField(
-                controller: old,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Current')),
-            const SizedBox(height: 10),
-            TextField(
-                controller: next,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'New')),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true), child: const Text('Re-wrap')),
+    final ok = await showSheet(
+      context,
+      title: t.t('change_passphrase'),
+      note: t.t('change_passphrase_note'),
+      confirmLabel: t.t('rewrap'),
+      body: Column(
+        children: [
+          TextField(
+            controller: old,
+            obscureText: true,
+            decoration: InputDecoration(labelText: t.t('current')),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: next,
+            obscureText: true,
+            decoration: InputDecoration(labelText: t.t('new')),
+          ),
         ],
       ),
     );
@@ -121,134 +107,112 @@ class _VaultScreenState extends State<VaultScreen> {
       await s.sdk.vault.changePassword(old.text, next.text);
       return true;
     });
-    if (done == true) {
-      setState(() => _note = 'Passphrase changed. The VK is byte-identical.');
-    }
+    if (done == true) _note('passphrase_changed');
   }
 
   @override
   Widget build(BuildContext context) {
     final a = s.account!;
+    final t = context.s;
+    final tx = Theme.of(context).textTheme;
+    final envelope = Map<String, dynamic>.from(s.sdk.vault.envelope);
+
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(40, 30, 40, 48),
       children: [
-        if (s.error != null) ErrorBanner(s.error!),
-        if (_note != null) ...[OkBanner(_note!), const SizedBox(height: 14)],
+        PageHead(
+          title: t.t('nav_vault'),
+          blurb: t.t('nav_blurb_vault'),
+          actions: [
+            Tag(a.deviceId, color: SyTheme.accent),
+            Tag(a.userId),
+          ],
+        ),
+        if (s.error(t) != null) ...[
+          Note(s.error(t)!, kind: NoteKind.danger),
+          const SizedBox(height: 22),
+        ],
+        if (_noteKey != null) ...[
+          Note(t.t(_noteKey!, _noteVars), kind: NoteKind.ok),
+          const SizedBox(height: 22),
+        ],
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              flex: 3,
-              child: Panel(
-                title: 'Identity',
+              child: Section(
+                first: true,
+                title: t.t('identity'),
+                note: t.t('identity_note'),
                 child: Column(
                   children: [
-                    Kv('user', a.userId, mono: true),
-                    Kv('device', a.deviceId, mono: true),
-                    Kv('fingerprint', a.fingerprint, mono: true),
-                    const Divider(height: 22),
-                    Text(
-                      'Two key pairs are held by this device: X25519 for key '
-                      'agreement and Ed25519 for signatures. Only the public '
-                      'halves were ever sent to the server.',
-                      style: SyTheme.small,
-                    ),
+                    Field(t.t('user'), a.userId, mono: true),
+                    Field(t.t('device'), a.deviceId, mono: true),
+                    Field(t.t('fingerprint'), a.fingerprint, mono: true),
                   ],
                 ),
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 56),
             Expanded(
-              flex: 3,
-              child: Panel(
-                title: 'Vault key',
+              child: Section(
+                first: true,
+                title: t.t('vault_key'),
+                trailing: TextButton(
+                  onPressed: _changePassword,
+                  child: Text(t.t('change')),
+                ),
+                note: t.t('vault_key_note'),
                 child: Column(
                   children: [
-                    Kv('VK', s.sdk.vault.vaultKeyPreview, mono: true),
-                    Kv('derivation', 'Argon2id (t=3, m=64 MiB, p=4) → KEK', mono: true),
-                    Kv('wrapped by', 'AES-256-GCM, AAD = device id', mono: true),
-                    const Divider(height: 22),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'This key never leaves the process. The server stores '
-                            'the envelope next to it, not the key.',
-                            style: SyTheme.small,
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: _changePassword,
-                          icon: const Icon(Icons.password, size: 15),
-                          label: const Text('Change'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              flex: 2,
-              child: Panel(
-                title: 'Devices',
-                trailing: IconButton(
-                  onPressed: _addDevice,
-                  icon: const Icon(Icons.add, size: 18),
-                  tooltip: 'Add a device',
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final d in devices)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            Icon(
-                              d == a.deviceId
-                                  ? Icons.laptop_mac
-                                  : Icons.smartphone,
-                              size: 16,
-                              color: d == a.deviceId
-                                  ? SyTheme.accent
-                                  : SyTheme.muted,
-                            ),
-                            const SizedBox(width: 9),
-                            Expanded(
-                                child: Text(d, style: SyTheme.mono(12.5))),
-                            if (d == a.deviceId)
-                              const Pill('this one', color: SyTheme.accent),
-                          ],
-                        ),
-                      ),
-                    if (devices.isEmpty) const EmptyState('no envelope here'),
+                    Field(t.t('vk'), s.sdk.vault.vaultKeyPreview, mono: true),
+                    Field(t.t('derivation'), t.t('derivation_value')),
+                    Field(t.t('wrapped_by'), t.t('wrapped_by_value')),
                   ],
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 14),
-        Panel(
-          title: 'What the server holds for this device',
+        Section(
+          title: t.t('devices'),
           trailing: TextButton(
-            onPressed: () => setState(() => _showEnvelope = !_showEnvelope),
-            child: Text(_showEnvelope ? 'Hide' : 'Show JSON'),
+            onPressed: _addDevice,
+            child: Text(t.t('add_device_short')),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'A salt, a nonce, and a wrapped vault key. Three fields that are '
-                'useless without the passphrase — and the passphrase is never sent.',
-                style: SyTheme.small,
-              ),
+              for (final d in devices)
+                RowLine(
+                  onTap: null,
+                  selected: d == a.deviceId,
+                  child: Row(
+                    children: [
+                      Text(d, style: SyTheme.mono(12.5, SyTheme.ink)),
+                      const SizedBox(width: 10),
+                      if (d == a.deviceId)
+                        Tag(t.t('this_one'), color: SyTheme.accent),
+                    ],
+                  ),
+                ),
+              if (devices.isEmpty) Blank(t.t('no_envelope')),
+            ],
+          ),
+        ),
+        Section(
+          title: t.t('server_holds'),
+          trailing: TextButton(
+            onPressed: () => setState(() => _showEnvelope = !_showEnvelope),
+            child: Text(_showEnvelope ? t.t('hide') : t.t('show_json')),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(t.t('server_holds_note'), style: tx.bodySmall),
               if (_showEnvelope) ...[
-                const SizedBox(height: 12),
-                MonoBlock(AppState.prettyJson(
-                    s.sdk.vault.envelope.map((k, v) => MapEntry(k, v)))),
+                const SizedBox(height: 14),
+                Code(AppState.prettyJson(envelope)),
               ],
             ],
           ),
@@ -257,3 +221,4 @@ class _VaultScreenState extends State<VaultScreen> {
     );
   }
 }
+

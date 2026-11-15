@@ -47,6 +47,8 @@ cd server && ./reset.sh
 cd apps/sycore_app
 flutter run -d linux          # or: flutter build linux --release
 #    → sign in as Ali / Sara / Mona with the demo passphrase
+#    → the switch in the header turns the whole interface Arabic (RTL)
+#      or back; SYCORE_LANG=ar starts in Arabic
 
 # 3 · the SDK walkthrough (optional, but it is the proof without a UI)
 cd examples
@@ -79,6 +81,12 @@ cd server && ./.venv/bin/python -m pytest  # 10 tests, includes the zero-crypto 
 | **Group** | epoch, member chips, timeline, `3 readers` vs `2 readers` | SAMAM: removing Mona rotates the key |
 | **Public** | signed post, "Read as anonymous", the forgery experiment | JAHR: the directory, not the payload, decides authorship |
 | **Operator** | stats, every row, the wire JSON, the audit log | metadata yes, content no |
+
+The interface is bilingual — English and Arabic, switched from the header — and
+mirrors right-to-left when Arabic is chosen. It is set on paper: ink text, one
+dark-green accent, hairline rules instead of cards, and colour used only for
+meaning (verified, refused, removed). Fonts are bundled, so it looks the same on
+any machine and with no network.
 
 The forgery experiment is the one to run in front of an audience: a forged post
 verifies **true** against the key shipped inside it, and **false** against the

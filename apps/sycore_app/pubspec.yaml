@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   sycore_client:
     path: ../../packages/sycore_client
   sycore_core:
@@ -21,3 +23,30 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/fonts/
+
+  fonts:
+    - family: Lato
+      fonts:
+        - asset: assets/fonts/Lato-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Lato-Bold.ttf
+          weight: 700
+    - family: Libertine
+      fonts:
+        - asset: assets/fonts/LinLibertine_R.otf
+          weight: 400
+        - asset: assets/fonts/LinLibertine_RB.otf
+          weight: 700
+    - family: Naskh
+      fonts:
+        - asset: assets/fonts/NotoNaskhArabic-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/NotoNaskhArabic-Bold.ttf
+          weight: 700
+    - family: Hack
+      fonts:
+        - asset: assets/fonts/Hack-Regular.ttf
+          weight: 400

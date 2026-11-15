@@ -42,6 +42,41 @@ sides.
 | **Public** | JAHR feed, anonymous read, and the forged-key experiment |
 | **Operator** | stats, every row the API discloses, the wire JSON, the audit log |
 
+## Language
+
+The whole interface exists twice — English and Arabic — and the switch in the
+header (or on the login page) swaps it instantly: words, alignment, and text
+direction. Arabic mirrors the layout properly (`Directionality` + Arabic
+Material localisations), it is not a translation bolted onto a left-to-right
+page. Wire JSON is the one exception: bytes are always shown left to right.
+
+Start in a given language for a rehearsal:
+
+```bash
+SYCORE_LANG=ar ./build/linux/x64/release/bundle/sycore_app
+SYCORE_LANG=en ./build/linux/x64/release/bundle/sycore_app   # the default
+```
+
+Text lives in one table, [`lib/l10n.dart`](lib/l10n.dart): `Strings(AppLang.ar)`
+and `Strings(AppLang.en)`, with `{name}` placeholders. A missing key renders as
+`!key` so it is visible rather than silently English.
+
+## Design
+
+Paper, ink, and one pine accent. No cards, no shadows, no glow: structure comes
+from hairlines and white space, and colour is reserved for meaning (verified,
+refused, removed). Headings are set in Linux Libertine, reading text in Lato,
+key material in Hack, and Arabic in Noto Naskh. All four faces are bundled in
+`assets/fonts`, so the app renders identically offline and on a machine that
+has none of them installed.
+
+## Tests
+
+```bash
+flutter test          # translation parity, placeholders, English/Arabic switch
+flutter analyze
+```
+
 ## Demo shortcuts
 
 For rehearsals and screenshots the app can sign in by itself:

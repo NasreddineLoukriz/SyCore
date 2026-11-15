@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sycore_client/sycore_client.dart';
 import 'package:sycore_core/sycore_core.dart' as core;
 
+import '../l10n.dart';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -20,8 +21,10 @@ class _JahrScreenState extends State<JahrScreen> {
 
   List<ResourceMeta> feed = const [];
   final Map<String, JahrCheck> checks = {};
-  String? note;
-  String? localError;
+  String? noteKey;
+  Map<String, Object?> noteVars = const {};
+  String? _errKey;
+  Map<String, Object?> _errVars = const {};
   bool loading = true;
   bool experimentRun = false;
   bool? trapResult;
@@ -35,55 +38,40 @@ class _JahrScreenState extends State<JahrScreen> {
     _load();
   }
 
+  void _fail(Object e) {
+    final d = s.describe(e);
+    setState(() {
+      _errKey = d.$1;
+      _errVars = d.$2;
+    });
+  }
+
   Future<void> _load() async {
     setState(() => loading = true);
     try {
       final f = await s.sdk.jahr.feed(project: AppState.project, domain: domain);
       if (mounted) setState(() => feed = f);
     } catch (e) {
-      if (mounted) setState(() => localError = s.describe(e));
+      if (mounted) _fail(e);
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
   Future<void> _publish() async {
+    final t = context.s;
     final text = TextEditingController(
         text: 'How to build a server that cannot read your data');
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: SyTheme.surface,
-        title: const Text('Publish publicly'),
-        content: SizedBox(
-          width: 480,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Zero wraps. The bytes are stored in clear, and an Ed25519 '
-                'signature binds them to this identity, this project, this '
-                'domain and this row id.',
-                style: SyTheme.small,
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: text,
-                maxLines: 5,
-                decoration: const InputDecoration(labelText: 'Content'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.public, size: 16),
-            label: const Text('Sign & publish'),
-          ),
-        ],
+    final ok = await showSheet(
+      context,
+      title: t.t('publish_title'),
+      note: t.t('publish_dialog_note'),
+      confirmLabel: t.t('sign_publish'),
+      width: 480,
+      body: TextField(
+        controller: text,
+        maxLines: 5,
+        decoration: InputDecoration(labelText: t.t('content')),
       ),
     );
     if (ok != true) return;
@@ -93,7 +81,10 @@ class _JahrScreenState extends State<JahrScreen> {
           text: text.text,
         ));
     if (env != null) {
-      setState(() => note = 'Published ${env.id} · 0 wraps · 1 signature.');
+      setState(() {
+        noteKey = 'published';
+        noteVars = {'id': env.id};
+      });
       await _load();
     }
   }
@@ -103,13 +94,36 @@ class _JahrScreenState extends State<JahrScreen> {
     if (check != null) setState(() => checks[m.id] = check);
   }
 
+  Future<void> _read(ResourceMeta m) async {
+    final t = context.s;
+    final text = await s.guard(() => s.sdk.jahr.read(m.id));
+    if (text == null || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t.t('read_anonymous_title', {'id': m.id})),
+        content: SizedBox(
+          width: 460,
+          child: SelectableText(text,
+              style: Theme.of(ctx).textTheme.bodyLarge),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(t.t('close')),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// The experiment a professor asks for: verify with the key shipped in the
   /// payload (passes) versus the directory (fails).
   Future<void> _runExperiment() async {
     final a = s.account;
     if (a == null) return;
-    final attacker =
-        await core.Identity.create('usr_attacker', seed: core.utf8b('attacker'));
+    final attacker = await core.Identity.create('usr_attacker',
+        seed: core.utf8b('attacker'));
     final fake = await core.publishPublic(
       projectId: AppState.project,
       domain: domain,
@@ -129,6 +143,7 @@ class _JahrScreenState extends State<JahrScreen> {
           await a.identity.signingPublic());
     final defence = await core.verifyPublic(
         envelope: fake, content: content, directory: dir);
+    if (!mounted) return;
     setState(() {
       experimentRun = true;
       trapResult = trap;
@@ -138,154 +153,158 @@ class _JahrScreenState extends State<JahrScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.s;
+    final tx = Theme.of(context).textTheme;
+
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(40, 30, 40, 48),
       children: [
-        if (s.error != null) ErrorBanner(s.error!),
-        if (localError != null) ErrorBanner(localError!),
-        if (note != null) ...[OkBanner(note!), const SizedBox(height: 14)],
+        PageHead(
+          title: '${t.t('nav_public')} · $domain',
+          blurb: t.t('nav_blurb_public'),
+          actions: [
+            OutlinedButton(
+              onPressed: _publish,
+              child: Text(t.t('publish')),
+            ),
+          ],
+        ),
+        if (s.error(t) != null) ...[
+          Note(s.error(t)!, kind: NoteKind.danger),
+          const SizedBox(height: 22),
+        ],
+        if (_errKey != null) ...[
+          Note(t.t(_errKey!, _errVars), kind: NoteKind.danger),
+          const SizedBox(height: 22),
+        ],
+        if (noteKey != null) ...[
+          Note(t.t(noteKey!, noteVars), kind: NoteKind.ok),
+          const SizedBox(height: 22),
+        ],
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── the feed ────────────────────────────────────────
             Expanded(
-              flex: 3,
-              child: Panel(
-                title: 'Public · $domain',
-                trailing: FilledButton.icon(
-                  onPressed: _publish,
-                  icon: const Icon(Icons.edit_outlined, size: 15),
-                  label: const Text('Publish'),
+              flex: 6,
+              child: Section(
+                first: true,
+                title: '${t.t('public')} · $domain',
+                trailing: IconButton(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh, size: 16),
+                  tooltip: t.t('refresh'),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'JAHR is the one engine where the content is not secret — '
-                      'it is public by design. What is protected is authorship.',
-                      style: SyTheme.small,
-                    ),
+                    Text(t.t('publish_note'), style: tx.bodySmall),
                     const SizedBox(height: 14),
                     if (loading)
-                      const Center(child: CircularProgressIndicator())
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: LinearProgressIndicator(),
+                      )
                     else if (feed.isEmpty)
-                      const EmptyState('Nothing published yet.')
+                      Blank(t.t('nothing_published'))
                     else
-                      for (final m in feed) ...[
+                      for (final m in feed)
                         Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: SyTheme.surfaceAlt,
-                            border: Border.all(color: SyTheme.line),
-                            borderRadius: BorderRadius.circular(9),
+                          decoration: const BoxDecoration(
+                            border: Border(
+                                bottom: BorderSide(color: SyTheme.lineSoft)),
                           ),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 13, horizontal: 2),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Row(
                                 children: [
                                   Expanded(
                                     child: Text(m.id,
-                                        style: SyTheme.mono(11.5, SyTheme.text)),
+                                        style: SyTheme.mono(11.5, SyTheme.ink)),
                                   ),
-                                  _CheckChip(checks[m.id]),
+                                  if (checks[m.id] != null) ...[
+                                    _CheckTag(checks[m.id]!, t),
+                                    const SizedBox(width: 10),
+                                  ],
+                                  Text(stamp(m.updatedAt),
+                                      style: tx.labelSmall),
                                 ],
                               ),
                               const SizedBox(height: 4),
-                              Text('${m.ownerId} · ${stamp(m.updatedAt)}',
-                                  style: SyTheme.mono(10.5, SyTheme.muted)),
-                              const SizedBox(height: 8),
+                              Text(
+                                  '${m.ownerId} · '
+                                  '${t.t('chars', {'n': m.ciphertextChars})}',
+                                  style: tx.labelSmall),
+                              const SizedBox(height: 9),
                               Row(
                                 children: [
-                                  OutlinedButton.icon(
-                                    onPressed: () => _verify(m),
-                                    icon: const Icon(Icons.verified_outlined, size: 14),
-                                    label: const Text('Verify'),
-                                  ),
-                                  const SizedBox(width: 8),
                                   TextButton(
-                                    onPressed: () async {
-                                      final text =
-                                          await s.sdk.jahr.read(m.id);
-                                      if (!context.mounted) return;
-                                      showDialog<void>(
-                                        context: context,
-                                        builder: (ctx) => AlertDialog(
-                                          backgroundColor: SyTheme.surface,
-                                          title: Text('Read anonymously · ${m.id}'),
-                                          content: SizedBox(
-                                              width: 460,
-                                              child: SelectableText(text,
-                                                  style: SyTheme.body
-                                                      .copyWith(fontSize: 14))),
-                                          actions: [
-                                            TextButton(
-                                                onPressed: () => Navigator.pop(ctx),
-                                                child: const Text('Close')),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                    child: const Text('Read as anonymous'),
+                                    onPressed: () => _verify(m),
+                                    child: Text(t.t('verify')),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  TextButton(
+                                    onPressed: () => _read(m),
+                                    child: Text(t.t('read_anonymous')),
                                   ),
                                 ],
                               ),
                             ],
                           ),
                         ),
-                      ],
                   ],
                 ),
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 56),
+            // ── the trap ────────────────────────────────────────
             Expanded(
-              flex: 2,
-              child: Panel(
-                title: 'The trap',
+              flex: 4,
+              child: Section(
+                first: true,
+                title: t.t('trap'),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'An attacker publishes in your name and signs with his own '
-                      'key — and helpfully ships that key with the payload. '
-                      'Verification that reads the key from the payload says yes.',
-                      style: SyTheme.small,
-                    ),
-                    const SizedBox(height: 12),
+                    Text(t.t('trap_note'), style: tx.bodySmall),
+                    const SizedBox(height: 16),
                     if (!experimentRun)
-                      OutlinedButton.icon(
-                        onPressed: _runExperiment,
-                        icon: const Icon(Icons.science_outlined, size: 15),
-                        label: const Text('Run the forgery experiment'),
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: OutlinedButton(
+                          onPressed: _runExperiment,
+                          child: Text(t.t('run_experiment')),
+                        ),
                       )
                     else ...[
                       _Verdict(
-                        label: 'key from the payload',
-                        ok: trapResult == true,
-                        expect: 'must be rejected',
+                        label: t.t('key_from_payload'),
+                        accepted: trapResult == true,
+                        acceptWord: t.t('accepted'),
+                        blockWord: t.t('blocked'),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       _Verdict(
-                        label: 'key from the directory',
-                        ok: defenceResult == false,
-                        expect: 'must be rejected',
+                        label: t.t('key_from_directory'),
+                        accepted: defenceResult != false,
+                        acceptWord: t.t('accepted'),
+                        blockWord: t.t('blocked'),
                       ),
-                      const SizedBox(height: 10),
-                      OkBanner(
+                      const SizedBox(height: 16),
+                      Note(
                         defenceResult == false
-                            ? 'The forgery only survives against a key the attacker '
-                                'supplied. The directory is what makes it fail.'
-                            : 'Something is wrong: the directory accepted a forgery.',
+                            ? t.t('trap_conclusion')
+                            : t.t('trap_broken'),
+                        kind: defenceResult == false
+                            ? NoteKind.ok
+                            : NoteKind.danger,
                       ),
                     ],
-                    const Divider(height: 26),
-                    Text(
-                      'This is why spec/SPEC.md §7 forbids taking a public key from '
-                      'the payload being verified. A verifier that does is not '
-                      'verifying anything.',
-                      style: SyTheme.small,
-                    ),
+                    const SizedBox(height: 18),
+                    Text(t.t('trap_footnote'), style: tx.bodySmall),
                   ],
                 ),
               ),
@@ -297,54 +316,51 @@ class _JahrScreenState extends State<JahrScreen> {
   }
 }
 
-class _CheckChip extends StatelessWidget {
-  const _CheckChip(this.check);
+class _CheckTag extends StatelessWidget {
+  const _CheckTag(this.check, this.t);
 
-  final JahrCheck? check;
+  final JahrCheck check;
+  final Strings t;
 
   @override
   Widget build(BuildContext context) {
-    if (check == null) return const SizedBox.shrink();
-    if (check!.verified) {
-      return const Pill('verified · directory', color: SyTheme.ok, icon: Icons.verified);
+    if (check.verified) {
+      return Tag(t.t('verified_directory'), color: SyTheme.ok);
     }
-    return Pill(
-      check!.reason == 'unknown_signer' ? 'unknown signer' : 'bad signature',
+    return Tag(
+      check.reason == 'unknown_signer'
+          ? t.t('unknown_signer')
+          : t.t('bad_signature'),
       color: SyTheme.danger,
-      icon: Icons.gpp_bad_outlined,
     );
   }
 }
 
+/// For a verifier, accepting is always the unsafe outcome: green means the
+/// claim was rejected.
 class _Verdict extends StatelessWidget {
-  const _Verdict({required this.label, required this.ok, required this.expect});
+  const _Verdict({
+    required this.label,
+    required this.accepted,
+    required this.acceptWord,
+    required this.blockWord,
+  });
 
   final String label;
-
-  /// True when the outcome is the one we want to see.
-  final bool ok;
-  final String expect;
+  final bool accepted;
+  final String acceptWord;
+  final String blockWord;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: (ok ? SyTheme.ok : SyTheme.danger).withValues(alpha: 0.09),
-        border: Border.all(
-            color: (ok ? SyTheme.ok : SyTheme.danger).withValues(alpha: 0.5)),
-        borderRadius: BorderRadius.circular(9),
-      ),
-      child: Row(
-        children: [
-          Icon(ok ? Icons.check_circle_outline : Icons.error_outline,
-              size: 16, color: ok ? SyTheme.ok : SyTheme.danger),
-          const SizedBox(width: 9),
-          Expanded(child: Text(label, style: SyTheme.mono(12))),
-          Text(ok ? 'blocked' : 'accepted',
-              style: SyTheme.mono(11.5, ok ? SyTheme.ok : SyTheme.danger)),
-        ],
-      ),
+    final tx = Theme.of(context).textTheme;
+    final color = accepted ? SyTheme.danger : SyTheme.ok;
+    return Row(
+      children: [
+        Expanded(child: Text(label, style: tx.bodyMedium)),
+        Text(accepted ? acceptWord : blockWord,
+            style: tx.titleSmall?.copyWith(color: color)),
+      ],
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sycore_client/sycore_client.dart';
 
+import '../l10n.dart';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -21,8 +22,10 @@ class _SamamScreenState extends State<SamamScreen> {
   GroupInfo? group;
   List<ResourceMeta> rows = const [];
   bool loading = true;
-  String? note;
-  String? localError;
+  String? noteKey;
+  Map<String, Object?> noteVars = const {};
+  String? _errKey;
+  Map<String, Object?> _errVars = const {};
   String? openId;
   String? opened;
 
@@ -34,6 +37,19 @@ class _SamamScreenState extends State<SamamScreen> {
     _load();
   }
 
+  void _fail(Object e) {
+    final d = s.describe(e);
+    setState(() {
+      _errKey = d.$1;
+      _errVars = d.$2;
+    });
+  }
+
+  void _note(String key, [Map<String, Object?>? vars]) => setState(() {
+        noteKey = key;
+        noteVars = vars ?? const {};
+      });
+
   Future<void> _load() async {
     setState(() => loading = true);
     try {
@@ -43,7 +59,8 @@ class _SamamScreenState extends State<SamamScreen> {
       } on SycoreException {
         g = null;
       }
-      final r = await s.sdk.hosn.inbox(project: AppState.project, domain: domain);
+      final r =
+          await s.sdk.hosn.inbox(project: AppState.project, domain: domain);
       if (mounted) {
         setState(() {
           group = g;
@@ -51,55 +68,64 @@ class _SamamScreenState extends State<SamamScreen> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => localError = s.describe(e));
+      if (mounted) _fail(e);
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
   Future<void> _createGroup() async {
+    final t = context.s;
     final chosen = <String>{'usr_sara', 'usr_mona'}..remove(s.userId);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          backgroundColor: SyTheme.surface,
-          title: const Text('New group'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'The epoch key is wrapped once per member. Removing someone '
-                'bumps the epoch and replaces the key.',
-                style: SyTheme.small,
-              ),
-              const SizedBox(height: 12),
-              for (final p in personas)
-                if (p.id != s.userId)
-                  CheckboxListTile(
-                    value: chosen.contains(p.id),
-                    onChanged: (v) => setLocal(() {
-                      if (v == true) {
-                        chosen.add(p.id);
-                      } else {
-                        chosen.remove(p.id);
-                      }
-                    }),
-                    title: Text('${p.name} · ${p.id}', style: SyTheme.body),
-                    subtitle: Text(p.role, style: SyTheme.mono(10.5)),
-                    dense: true,
-                    activeColor: SyTheme.accent,
+    final ok = await showSheet(
+      context,
+      title: t.t('new_group'),
+      note: t.t('new_group_note'),
+      confirmLabel: t.t('create'),
+      body: StatefulBuilder(
+        builder: (ctx, setLocal) => Column(
+          children: [
+            for (final p in personas)
+              if (p.id != s.userId)
+                InkWell(
+                  onTap: () => setLocal(() {
+                    if (chosen.contains(p.id)) {
+                      chosen.remove(p.id);
+                    } else {
+                      chosen.add(p.id);
+                    }
+                  }),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: chosen.contains(p.id),
+                          onChanged: (v) => setLocal(() {
+                            if (v == true) {
+                              chosen.add(p.id);
+                            } else {
+                              chosen.remove(p.id);
+                            }
+                          }),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(p.nameIn(t),
+                                  style: Theme.of(ctx).textTheme.titleSmall),
+                              Text(t.t(p.roleKey),
+                                  style: Theme.of(ctx).textTheme.bodySmall),
+                            ],
+                          ),
+                        ),
+                        Text(p.id, style: SyTheme.mono(11, SyTheme.faint)),
+                      ],
+                    ),
                   ),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel')),
-            FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Create')),
+                ),
           ],
         ),
       ),
@@ -112,43 +138,31 @@ class _SamamScreenState extends State<SamamScreen> {
           members: chosen.toList(),
         ));
     if (g != null) {
-      setState(() => note = 'Group created at epoch ${g.epoch}.');
+      _note('group_created', {'n': g.epoch});
       await _load();
     }
   }
 
   Future<void> _post() async {
+    final t = context.s;
     final text = TextEditingController(text: 'March budget: 41,000 DZD');
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: SyTheme.surface,
-        title: Text('Post to epoch ${group?.epoch}'),
-        content: SizedBox(
-          width: 420,
-          child: TextField(
-            controller: text,
-            maxLines: 3,
-            decoration: const InputDecoration(labelText: 'Message'),
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Seal & post')),
-        ],
+    final ok = await showSheet(
+      context,
+      title: t.t('post_to_epoch', {'n': group?.epoch}),
+      note: t.t('new_group_note'),
+      confirmLabel: t.t('seal_post'),
+      body: TextField(
+        controller: text,
+        maxLines: 3,
+        decoration: InputDecoration(labelText: t.t('message')),
       ),
     );
     if (ok != true) return;
-    final env = await s.guard(() => s.sdk.samam.post(
-          groupId: groupId,
-          text: text.text,
-        ));
+    final epoch = group?.epoch;
+    final env = await s.guard(() =>
+        s.sdk.samam.post(groupId: groupId, text: text.text));
     if (env != null) {
-      setState(() => note = 'Sealed with epoch ${group!.epoch} key · '
-          '${env.readerCount} wraps.');
+      _note('group_posted', {'n': epoch, 'w': env.readerCount});
       await _load();
     }
   }
@@ -156,17 +170,14 @@ class _SamamScreenState extends State<SamamScreen> {
   Future<void> _remove(String userId) async {
     final g = await s.guard(() => s.sdk.samam.removeMember(groupId, userId));
     if (g == null) return;
-    setState(() {
-      note = '$userId removed → epoch ${g.epoch}. The key was replaced: '
-          'the past stays readable, the future does not.';
-    });
+    _note('member_removed', {'user': userId, 'n': g.epoch});
     await _load();
   }
 
   Future<void> _add(String userId) async {
     final g = await s.guard(() => s.sdk.samam.addMember(groupId, userId));
     if (g == null) return;
-    setState(() => note = '$userId added → epoch ${g.epoch}.');
+    _note('member_added', {'user': userId, 'n': g.epoch});
     await _load();
   }
 
@@ -174,204 +185,252 @@ class _SamamScreenState extends State<SamamScreen> {
     setState(() {
       openId = m.id;
       opened = null;
-      localError = null;
+      _errKey = null;
     });
     try {
-      final t = await s.sdk.samam.open(m.id);
-      if (mounted) setState(() => opened = t);
+      final text = await s.sdk.samam.open(m.id);
+      if (mounted) setState(() => opened = text);
     } catch (e) {
-      if (mounted) setState(() => localError = s.describe(e));
+      if (mounted) _fail(e);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final removable = personas.where((p) => p.id != s.userId).toList();
+    final t = context.s;
+    final tx = Theme.of(context).textTheme;
+    final g = group;
+
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(40, 30, 40, 48),
       children: [
-        if (s.error != null) ErrorBanner(s.error!),
-        if (localError != null) ErrorBanner(localError!),
-        if (note != null) ...[OkBanner(note!, color: SyTheme.violet), const SizedBox(height: 14)],
+        PageHead(
+          title: t.t('nav_group'),
+          blurb: t.t('nav_blurb_group'),
+          actions: [
+            if (g != null) Tag('${t.t('epoch')} ${g.epoch}', color: SyTheme.warn),
+            if (g != null && s.userId == 'usr_ali')
+              OutlinedButton(
+                onPressed: _post,
+                child: Text(t.t('post_to_epoch', {'n': g.epoch})),
+              ),
+          ],
+        ),
+        if (s.error(t) != null) ...[
+          Note(s.error(t)!, kind: NoteKind.danger),
+          const SizedBox(height: 22),
+        ],
+        if (_errKey != null) ...[
+          Note(t.t(_errKey!, _errVars), kind: NoteKind.danger),
+          const SizedBox(height: 22),
+        ],
+        if (noteKey != null) ...[
+          Note(t.t(noteKey!, noteVars), kind: NoteKind.ok),
+          const SizedBox(height: 22),
+        ],
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── membership ──────────────────────────────────────
             Expanded(
-              flex: 3,
-              child: Panel(
-                title: 'Group',
-                trailing: group == null
-                    ? null
-                    : Pill('epoch ${group!.epoch}', color: SyTheme.violet),
-                child: group == null
+              flex: 4,
+              child: Section(
+                first: true,
+                title: t.t('group'),
+                child: g == null
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const EmptyState(
-                            'No group state on this device.\nOnly the creator holds the epoch key.',
-                            icon: Icons.groups_outlined,
-                          ),
-                          if (s.userId == 'usr_ali')
-                            FilledButton.icon(
-                              onPressed: _createGroup,
-                              icon: const Icon(Icons.add, size: 16),
-                              label: const Text('Create group'),
+                          Text(t.t('no_group'), style: tx.bodySmall),
+                          if (s.userId == 'usr_ali') ...[
+                            const SizedBox(height: 16),
+                            Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: OutlinedButton(
+                                onPressed: _createGroup,
+                                child: Text(t.t('create_group')),
+                              ),
                             ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Rows in this domain are still listed below if the '
-                            'server authorises you. Membership lives in the key '
-                            'wraps, not in a table the server understands.',
-                            style: SyTheme.small,
-                          ),
+                          ],
                         ],
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Kv('group', group!.id, mono: true),
-                          Kv('epoch', '${group!.epoch}', mono: true),
-                          Kv('members', group!.memberIds.join(', '), mono: true),
-                          const Divider(height: 22),
-                          Text('Members', style: SyTheme.small),
+                          Field(t.t('epoch'), '${g.epoch}', mono: true),
+                          Field(t.t('members'), '${g.memberIds.length}',
+                              mono: true),
+                          const SizedBox(height: 10),
+                          Text(t.t('members'), style: tx.labelMedium),
                           const SizedBox(height: 8),
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
                             children: [
-                              for (final id in group!.memberIds)
-                                InputChip(
-                                  label: Text(id, style: SyTheme.mono(11.5)),
-                                  backgroundColor: SyTheme.surfaceAlt,
-                                  side: const BorderSide(color: SyTheme.line),
-                                  onDeleted: id == s.userId ? null : () => _remove(id),
-                                  deleteIcon: id == s.userId
+                              for (final id in g.memberIds)
+                                _Member(
+                                  label: _nameOf(id, t),
+                                  mine: id == s.userId,
+                                  onRemove: (id == s.userId ||
+                                          s.userId != 'usr_ali')
                                       ? null
-                                      : const Icon(Icons.person_remove_outlined,
-                                          size: 14),
-                                  deleteIconColor: SyTheme.danger,
+                                      : () => _remove(id),
                                 ),
-                              for (final p in removable)
-                                if (!group!.members.containsKey(p.id))
-                                  ActionChip(
-                                    label: Text('+ ${p.id}', style: SyTheme.mono(11.5)),
+                              for (final p in personas)
+                                if (!g.members.containsKey(p.id) &&
+                                    s.userId == 'usr_ali')
+                                  TextButton(
                                     onPressed: () => _add(p.id),
-                                    backgroundColor: SyTheme.surfaceAlt,
-                                    side: const BorderSide(color: SyTheme.line),
+                                    child: Text(
+                                      t.t('add_member', {'user': p.id}),
+                                      style: SyTheme.mono(11,
+                                          SyTheme.accent),
+                                    ),
                                   ),
                             ],
                           ),
                           const SizedBox(height: 14),
-                          if (s.userId == 'usr_ali')
-                            FilledButton.icon(
-                              onPressed: _post,
-                              icon: const Icon(Icons.lock_outline, size: 16),
-                              label: Text('Post to epoch ${group!.epoch}'),
-                            )
-                          else
-                            Text(
-                              'Only the owner holds the epoch key on this device. '
-                              'Members read what was wrapped for them.',
-                              style: SyTheme.small,
-                            ),
+                          Text(t.t('member_note'), style: tx.bodySmall),
                         ],
                       ),
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 56),
+            // ── timeline ────────────────────────────────────────
             Expanded(
-              flex: 4,
-              child: Panel(
-                title: 'Timeline · $domain',
+              flex: 6,
+              child: Section(
+                first: true,
+                title: t.t('timeline'),
                 trailing: IconButton(
-                    onPressed: _load,
-                    icon: const Icon(Icons.refresh, size: 17)),
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh, size: 16),
+                  tooltip: t.t('refresh'),
+                ),
                 child: loading
                     ? const Padding(
-                        padding: EdgeInsets.all(30),
-                        child: Center(child: CircularProgressIndicator()),
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: LinearProgressIndicator(),
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           if (rows.isEmpty)
-                            EmptyState(
-                              s.userId == 'usr_mona'
-                                  ? 'Mona sees nothing after the rotation.\nThe rows still exist; she is not in their wraps.'
-                                  : 'No group messages yet.',
-                              icon: Icons.forum_outlined,
-                            ),
-                          for (final m in rows)
+                            Blank(s.userId == 'usr_mona'
+                                ? t.t('mona_empty')
+                                : t.t('no_messages')),
+                          for (final m in rows) ...[
                             InkWell(
                               onTap: () => _open(m),
-                              borderRadius: BorderRadius.circular(9),
                               child: Container(
-                                margin: const EdgeInsets.only(bottom: 6),
-                                padding: const EdgeInsets.all(12),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 11, horizontal: 10),
                                 decoration: BoxDecoration(
                                   color: openId == m.id
-                                      ? SyTheme.violet.withValues(alpha: 0.10)
-                                      : SyTheme.surfaceAlt,
-                                  border: Border.all(
-                                      color: openId == m.id
-                                          ? SyTheme.violet.withValues(alpha: 0.5)
-                                          : SyTheme.line),
-                                  borderRadius: BorderRadius.circular(9),
+                                      ? SyTheme.accentSoft
+                                      : null,
+                                  border: const Border(
+                                    bottom: BorderSide(
+                                        color: SyTheme.lineSoft),
+                                  ),
                                 ),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     Row(
                                       children: [
-                                        Text(m.id,
-                                            style: SyTheme.mono(11.5, SyTheme.text)),
-                                        const Spacer(),
-                                        Pill('${m.readers.length} readers',
-                                            color: SyTheme.violet),
-                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(m.id,
+                                              style: SyTheme.mono(11.5,
+                                                  SyTheme.ink)),
+                                        ),
+                                        Text(
+                                          t.t('readers_n',
+                                              {'n': m.readers.length}),
+                                          style: tx.labelSmall,
+                                        ),
+                                        const SizedBox(width: 10),
                                         Text(stamp(m.updatedAt),
-                                            style: SyTheme.mono(10.5)),
+                                            style: tx.labelSmall),
                                       ],
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(m.readers.join(' · '),
-                                        style: SyTheme.mono(10.5, SyTheme.muted)),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      m.readers.join(' · '),
+                                      style: SyTheme.mono(10.5, SyTheme.faint),
+                                    ),
                                     if (openId == m.id) ...[
-                                      const SizedBox(height: 10),
-                                      if (opened != null)
-                                        Container(
-                                          padding: const EdgeInsets.all(11),
-                                          decoration: BoxDecoration(
-                                            color: SyTheme.violet.withValues(alpha: 0.08),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: SelectableText(opened!,
-                                              style: SyTheme.body.copyWith(fontSize: 14)),
-                                        ),
+                                      if (opened != null) ...[
+                                        const SizedBox(height: 10),
+                                        Text(opened!,
+                                            style: tx.bodyMedium?.copyWith(
+                                                color: SyTheme.ink)),
+                                      ] else if (_errKey != null) ...[
+                                        const SizedBox(height: 8),
+                                        Text(t.t(_errKey!, _errVars),
+                                            style: tx.bodySmall?.copyWith(
+                                                color: SyTheme.danger)),
+                                      ],
                                     ],
                                   ],
                                 ),
                               ),
                             ),
+                          ],
                         ],
                       ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 14),
-        Panel(
-          title: 'Removal is not erasure',
-          child: Text(
-            'When a member is removed the epoch advances and a fresh key is '
-            'generated. Everything sealed after that point is out of their reach. '
-            'Everything sealed before it is still theirs to read — they had the '
-            'key when it was written. An implementation that hides this is lying '
-            'about what it can promise.',
-            style: SyTheme.body.copyWith(color: SyTheme.muted),
+        Section(
+          title: t.t('removal_title'),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Text(t.t('removal_note'), style: tx.bodyMedium),
           ),
         ),
       ],
+    );
+  }
+
+  String _nameOf(String id, Strings t) {
+    final p = personas.where((p) => p.id == id).firstOrNull;
+    return p == null ? id : '${p.nameIn(t)} · $id';
+  }
+}
+
+class _Member extends StatelessWidget {
+  const _Member({required this.label, required this.mine, this.onRemove});
+
+  final String label;
+  final bool mine;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final tx = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsetsDirectional.fromSTEB(9, 4, 4, 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: SyTheme.line),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: tx.labelSmall?.copyWith(color: SyTheme.inkSoft)),
+          if (onRemove != null)
+            InkWell(
+              onTap: onRemove,
+              child: const Padding(
+                padding: EdgeInsets.all(3),
+                child: Icon(Icons.close, size: 12, color: SyTheme.danger),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
