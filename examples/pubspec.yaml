@@ -8,6 +8,8 @@ environment:
 dependencies:
   sycore_core:
     path: ../packages/sycore_core
+  sycore_client:
+    path: ../packages/sycore_client
 
 dev_dependencies:
   lints: ^5.0.0

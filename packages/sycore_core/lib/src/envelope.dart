@@ -82,6 +82,10 @@ Future<Envelope> seal({
   ));
 
   for (final r in recipients) {
+    // The owner already has an `owner` wrap. A member list that includes the
+    // owner must not add a second, X25519 copy of the same key: the engine is
+    // "1 + N readers", not "1 + N + 1".
+    if (r.id == ownerId) continue;
     final shared = await X25519().sharedSecretKey(
       keyPair: owner.dh,
       remotePublicKey: SimplePublicKey(r.dhPublic, type: KeyPairType.x25519),

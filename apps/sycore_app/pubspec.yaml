@@ -1,0 +1,23 @@
+name: sycore_app
+description: SYCORE — encrypted storage you can see.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sycore_client:
+    path: ../../packages/sycore_client
+  sycore_core:
+    path: ../../packages/sycore_core
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

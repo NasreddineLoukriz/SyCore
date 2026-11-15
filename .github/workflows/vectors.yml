@@ -77,3 +77,59 @@ jobs:
             echo "::error::the demo reported a failure"
             exit 1
           fi
+
+  server:
+    name: blind server — API contract, zero crypto
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        working-directory: server
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Contract tests (includes the zero-crypto source scan)
+        working-directory: server
+        run: python -m pytest -q
+
+      - name: The server package must not contain cryptography
+        run: |
+          # Word boundaries on purpose: the server stores the *label*
+          # "A256GCM" as metadata and never implements it.
+          if grep -nE "\b(AES|GCM|X25519|Ed25519|HKDF|Argon|sha256|hmac|encrypt|decrypt)\b" \
+               server/sycore_server/*.py; then
+            echo "::error::the blind server grew a cryptographic dependency"
+            exit 1
+          fi
+
+  sdk:
+    name: Dart SDK — analyze and build the app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install SDK dependencies
+        working-directory: packages/sycore_client
+        run: dart pub get
+
+      - name: Analyze the SDK
+        working-directory: packages/sycore_client
+        run: dart analyze --fatal-infos
+
+      - name: Install app dependencies
+        working-directory: apps/sycore_app
+        run: flutter pub get
+
+      - name: Analyze the app
+        working-directory: apps/sycore_app
+        run: flutter analyze

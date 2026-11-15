@@ -252,7 +252,7 @@ Future<void> main(List<String> args) async {
   );
   serverInstance.put(g1, clearance: Clearance.e2ee);
   ok(L('رسالة epoch 1: wraps = ${g1.readerCount}  (المالك + 3 أعضاء)',
-      'epoch 1 message: wraps = ${g1.readerCount}  (owner + 3 members)'));
+      'epoch 1 message: wraps = ${g1.readerCount}  (owner + ${g1.readerCount - 1} members)'));
   ok(L('منى قرأت: "${utf8.decode(await openAsRecipient(g1, mona))}"',
       'Mona read it: "${utf8.decode(await openAsRecipient(g1, mona))}"'));
 

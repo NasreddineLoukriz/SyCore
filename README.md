@@ -11,7 +11,7 @@ the content, and it cannot be made to.
 device ──AES-256-GCM──▶ ciphertext ─┐
        ──wrapped keys──▶ wraps[] ────┴──▶ server   (stores bytes, checks names)
                                             │
-device ◀──open with a wrapped key───────────┘
+device ◀──open with a wrapped key──────────┘
 ```
 
 ---
@@ -20,61 +20,69 @@ device ◀──open with a wrapped key───────────┘
 
 | Component | State |
 |---|---|
-| **Wire format v1** — [`spec/SPEC.md`](spec/SPEC.md) | ✅ normative, 200 lines |
+| **Wire format v1** — [`spec/SPEC.md`](spec/SPEC.md) | ✅ normative |
 | **Conformance vectors** — [`vectors/v1.json`](vectors/v1.json) | ✅ generated, CI-verified |
-| **Dart client** — [`packages/sycore_core`](packages/sycore_core) | ✅ **14 tests green** against the vectors |
-| **Runnable demo** — [`examples/demo.dart`](examples/demo.dart) | ✅ 8 scenes, all four engines |
-| **Presenter's script** — [`DEMO.md`](DEMO.md) | ✅ pre-flight, scene-by-scene, Q&A |
-| FastAPI server (Postgres) | ⬜ next |
-| Flutter application | ⬜ next |
-| TypeScript client | ⬜ later |
+| **Blind server** — [`server/`](server) | ✅ FastAPI + SQLite, 10 tests, **zero crypto** |
+| **Dart SDK** — [`packages/sycore_client`](packages/sycore_client) | ✅ `vault`, `hosn`, `samam`, `jahr`, `operator` |
+| **Flutter app** — [`apps/sycore_app`](apps/sycore_app) | ✅ Linux desktop, five screens, live server |
+| **Crypto core** — [`packages/sycore_core`](packages/sycore_core) | ✅ 14 conformance tests |
+| **Walkthroughs** — [`examples/`](examples) | ✅ `client_demo.dart` (server) · `demo.dart` (offline) |
+| **Presenter's script** — [`DEMO.md`](DEMO.md) | ✅ pre-flight, scene by scene, Q&A |
 
-> v1 is a **specification with a working client and executable vectors**.
-> The vectors are the contract: any implementation that passes them is
-> compatible. That is the whole point.
+> The server has no cryptography in it, and a test fails the build if anyone
+> adds a line. The client has all of it. That asymmetry *is* the design.
 
 ---
 
 ## Run it
 
+Three terminals, in this order. Every command is short on purpose.
+
 ```bash
+# 1 · the server (starts clean: fresh DB, fresh local vaults)
+cd server && ./reset.sh
+#    → http://127.0.0.1:8787  (Ctrl-C to stop; ./run.sh next time keeps the data)
+
+# 2 · the app
+cd apps/sycore_app
+flutter run -d linux          # or: flutter build linux --release
+#    → sign in as Ali / Sara / Mona with the demo passphrase
+
+# 3 · the SDK walkthrough (optional, but it is the proof without a UI)
 cd examples
-dart pub get
-dart run demo.dart        # English
-dart run demo.dart --ar   # العربية
+dart run client_demo.dart     # 6 sections against the same live server
 ```
 
-Nothing else. No server, no database, no network.
+The demo passphrase is `correct horse battery staple`.
 
-To verify conformance:
+`examples/client_demo.dart` and the app share `~/.sycore/app`, so whichever runs
+first registers the identities and the other one simply unlocks them. If the
+server is reset while a vault survives, the app says
+`key_conflict`/`identity_mismatch` — run `server/reset.sh`, which clears both.
+
+To verify conformance and the offline proof:
 
 ```bash
-cd packages/sycore_core
-dart pub get
-dart test          # 14 tests, ~6 s
+cd examples && dart run demo.dart          # 8 scenes, no server, no network
+cd packages/sycore_core && dart test       # 14 tests, ~6 s
+cd server && ./.venv/bin/python -m pytest  # 10 tests, includes the zero-crypto scan
 ```
-
-CI runs both jobs on every push: vectors must regenerate byte-identically, and
-the Dart client must pass them. The blind server is additionally checked for
-**zero cryptographic imports**.
 
 ---
 
-## What the demo proves
+## The app — five screens, one envelope
 
-| # | Scene | Claim |
+| Screen | What you see | What it proves |
 |---|---|---|
-| 1 | Identities | one X25519 key + one Ed25519 key per user |
-| 2 | Vault | one `VK`, two device envelopes, password rotation that **does not re-encrypt anything** |
-| 3 | HOSN | Ali → Sara; the server tries to decrypt and fails |
-| 4 | AAD | the server transplants a ciphertext to another row → unopenable |
-| 5 | SAMAM | remove a member → epoch+1 → the removed member cannot read the future but keeps the past |
-| 6 | JAHR | publish signed; tamper fails; **a self-signed forgery fails** against the directory |
-| 7 | TOFU | a domain locked to `E2EE` rejects a `PLAIN` write |
-| 8 | Summary | exactly what the server saw: readership, size, time — never content |
+| **Vault** | identity, fingerprint, VK, devices (`cli`, `laptop`, `phone`) | the password opens a key; the key never moves |
+| **Messages** | inbox + plaintext + the same row as the server stores it | HOSN: owner wrap + one recipient wrap |
+| **Group** | epoch, member chips, timeline, `3 readers` vs `2 readers` | SAMAM: removing Mona rotates the key |
+| **Public** | signed post, "Read as anonymous", the forgery experiment | JAHR: the directory, not the payload, decides authorship |
+| **Operator** | stats, every row, the wire JSON, the audit log | metadata yes, content no |
 
-Every scene uses real cryptography. The only mock is `BlindServer`, an
-in-memory class that contains **no cryptographic code at all**.
+The forgery experiment is the one to run in front of an audience: a forged post
+verifies **true** against the key shipped inside it, and **false** against the
+directory. Two buttons, same bytes, opposite answers.
 
 ---
 
@@ -90,8 +98,8 @@ shape of `wraps`:
 | **SAMAM** | you + a group | 1 + N |
 | **JAHR** | everyone | 0 + signature |
 
-`wraps` lives **outside** the ciphertext. That is the only reason a blind
-server can authorize a read without decrypting.
+`wraps` lives **outside** the ciphertext. That is the only reason a blind server
+can authorize a read without decrypting.
 
 ---
 
@@ -103,21 +111,39 @@ server can authorize a read without decrypting.
 This is stated as a limitation, not hidden: see [`SPEC.md` §10](spec/SPEC.md).
 Metadata is visible by design. Content is not.
 
+The server also refuses, and records the refusal in `audit`:
+
+| Attempt | Answer |
+|---|---|
+| a non-reader fetches a row | `403 forbidden` |
+| a non-owner writes a row | `403 not_owner` |
+| a stale `version` | `409 version_conflict` |
+| `PLAIN` inside an `E2EE` domain | `422 data_poisoning_rejected` |
+| `JAHR` without a signature | `422 invalid_envelope` |
+| the same name with different keys | `409 key_conflict` |
+
 ---
 
 ## Repository map
 
 ```
-spec/SPEC.md              the wire format — read this first
-packages/sycore_core/     Dart client (crypto, vault, envelope, group, jahr)
-vectors/v1.json           conformance vectors (Python generator included)
-examples/demo.dart        the 8-scene live demonstration
-examples/expected-output.txt  the exact output, for offline presenting
-DEMO.md                   presenter's script: checklist, scenes, Q&A, limits
-tools/gen_vectors.py      regenerates the vectors; CI requires a clean diff
-sycore-backend/           ⚠ legacy Django prototype (2026-05) — reference only
-sycore-sdk/               ⚠ legacy SDK
-docs/                     design notes and the original decision log
+spec/SPEC.md                    the wire format — read this first
+server/                         blind FastAPI server (6 endpoints, SQLite, no crypto)
+  sycore_server/store.py        schema, policy, authorization — the whole server
+  sycore_server/main.py         the six routes
+server/tests/test_api.py        the contract + a scan proving zero crypto
+packages/sycore_core/           crypto, envelope, vault, group, jahr (14 tests)
+packages/sycore_client/         the SDK: vault, hosn, samam, jahr, operator
+apps/sycore_app/                the Flutter desktop app (five screens)
+examples/client_demo.dart       SDK walkthrough against the live server
+examples/demo.dart              the offline 8-scene proof (no server at all)
+examples/expected-output.txt    a reference run of demo.dart
+vectors/v1.json                 conformance vectors
+tools/gen_vectors.py            regenerates the vectors; CI requires a clean diff
+DEMO.md                         presenter's script: checklist, scenes, Q&A, limits
+sycore-backend/                 ⚠ legacy Django prototype (2026-05) — reference only
+sycore-sdk/                     ⚠ legacy SDK
+docs/                           design notes and the original decision log
 ```
 
 The `sycore-backend/` and `sycore-sdk/` trees are the May 2026 prototype. They
@@ -131,13 +157,20 @@ kept for the design history, not as a starting point.
 **SyCore طبقة تخزين مشفّرة من الطرف إلى الطرف.** التطبيق يشفّر قبل الإرسال،
 والخادم يخزّن صناديق مقفولة وقائمة بمن يملك مفاتيحها، ولا يستطيع قراءة المحتوى.
 
+هذه النسخة تعمل فعلاً: **خادم FastAPI** بستّ نقاط نهاية وقاعدة SQLite،
+**حزمة Dart** (`sycore_client`) بواجهة واضحة لكل ميزة، و**تطبيق Flutter**
+بخمس شاشات. الأوامر:
+
+```bash
+cd server && ./reset.sh                 # الخادم على 127.0.0.1:8787
+cd apps/sycore_app && flutter run -d linux
+cd examples && dart run client_demo.dart
+```
+
 **المحرّكات ليست وحدات في الخادم** — هي عدد اللفّات:
 الخزنة = 1 · HOSN = 2 · SAMAM = 1+N · JAHR = 0 + توقيع.
 
-**للتحقق السريع:** `cd examples && dart pub get && dart run demo.dart`
-ثمانية مشاهد تُظهر الخزنة وHOSN وSAMAM وJAHR ومنع نقل الرسائل ومنع الانتحال.
-
-المواصفة في `spec/SPEC.md`، واختبارات المطابقة في `vectors/v1.json`.
+كلمة السر للتجربة: `correct horse battery staple`.
 
 ---
 

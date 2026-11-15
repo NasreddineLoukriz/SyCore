@@ -28,3 +28,13 @@ sycore-sdk/dart_sycore_sdk/.packages
 .packages
 build/
 packages/*/pubspec.lock
+
+# v1 server (FastAPI + SQLite)
+server/.venv/
+server/sycore.db
+server/sycore.db-wal
+server/sycore.db-shm
+server/.pytest_cache/
+
+# local vaults used by the demo (never commit key material)
+.sycore/

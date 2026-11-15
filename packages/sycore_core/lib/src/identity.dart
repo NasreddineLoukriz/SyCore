@@ -65,6 +65,16 @@ class IdentityDirectory {
   final Map<String, Uint8List> _dh = {};
   final Map<String, Uint8List> _signing = {};
 
+  /// Register raw public keys, e.g. recovered from the server's directory.
+  ///
+  /// The bytes are *not* trusted because they came from the network; they are
+  /// trusted because JAHR signs them (SPEC §7). This method exists so callers
+  /// can pin a known key and never take one from the payload they verify.
+  void registerPublic(String id, Uint8List dhPub, Uint8List signingPub) {
+    _dh[id] = dhPub;
+    _signing[id] = signingPub;
+  }
+
   Future<void> register(Identity identity) async {
     _dh[identity.id] = await identity.dhPublic();
     _signing[identity.id] = await identity.signingPublic();

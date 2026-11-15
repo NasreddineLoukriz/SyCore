@@ -21,12 +21,12 @@
 ════════════════════════════════════════════════════════════════════
   Scene 2   Vault — password → Argon2id → KEK → wrapped VK
 ════════════════════════════════════════════════════════════════════
-  [CLIENT] phone: Argon2id (3 iterations, 64 MiB) took 725 ms
-         VK = SizKQ40NLkj_1wKkDEHbrACxjj…  (never leaves the device)
-         phone envelope: JQHvJukLIPV1Nfnri6hx1xNnTW…
-         laptop envelope: jfNodcniSXjsyxRNOr2JcGZFrx…  (same VK, different envelope)
-  [  OK  ] phone unlocked the vault:  VK = SizKQ40NLkj_1wKkDEHbrACxjj…
-  [  OK  ] laptop unlocked the vault: VK = SizKQ40NLkj_1wKkDEHbrACxjj…
+  [CLIENT] phone: Argon2id (3 iterations, 64 MiB) took 1650 ms
+         VK = ZJNd_biSSdch9cZ4d5ymlcCRGn…  (never leaves the device)
+         phone envelope: 4_jM0XlvtTRtTCAzkyeC8qwUOP…
+         laptop envelope: 9Qr5XFdBzieT01VrAdhbrp64VF…  (same VK, different envelope)
+  [  OK  ] phone unlocked the vault:  VK = ZJNd_biSSdch9cZ4d5ymlcCRGn…
+  [  OK  ] laptop unlocked the vault: VK = ZJNd_biSSdch9cZ4d5ymlcCRGn…
   [  OK  ] byte-identical key: true
   [SERVER] stores two envelopes only — knows neither the password nor the VK
   [  OK  ] wrong password — failed, as expected
@@ -39,10 +39,10 @@
   Scene 3   HOSN — a message between two people: 2 wraps
 ════════════════════════════════════════════════════════════════════
   [CLIENT] Ali encrypted the message and wrapped the key twice
-         CK = AiNoO0Fr30eIK7sKkAk9V7aVvR…
+         CK = ddGYbnT7eZKmqeYgSYDG-JFQKe…
          wraps = 2  → usr_ali:owner, usr_sara:recipient
   [SERVER] stored 66 ciphertext bytes in domain health
-         ciphertext = xz7baKrlaMVOPX-b24JHcGk5eO74VRq8PyI4TtBT_cPc…
+         ciphertext = Jc9qSv0iFct5QFZXUx9TGW4Pg6clcYqH08A9V_-_IS-I…
          readers = usr_ali, usr_sara  (metadata only)
   [BLOCK ] the server tried to decrypt with a random key → failed (it has no CK)
   [  OK  ] Sara fetched and opened it: "Surgery: 15 January, Mustapha Pacha hospital, 8:30"
@@ -59,10 +59,10 @@
   Scene 5   SAMAM — a group, then a member is removed: 1 + N wraps
 ════════════════════════════════════════════════════════════════════
          epoch 1 · members: usr_ali, usr_sara, usr_mona
-  [  OK  ] epoch 1 message: wraps = 4  (owner + 3 members)
+  [  OK  ] epoch 1 message: wraps = 3  (owner + 2 members)
   [  OK  ] Mona read it: "January budget: 45,000 DZD"
   [SERVER] Mona is removed → epoch 2 with a fresh key
-  [  OK  ] epoch 2 message: wraps = 3  — Mona is not in it
+  [  OK  ] epoch 2 message: wraps = 2  — Mona is not in it
   [  OK  ] Mona tries to read the epoch 2 message — failed, as expected
   [  OK  ] Mona can still read the epoch 1 message (she was a member then): "January budget: 45,000 DZD"
          that is the difference between removing a member and rewriting their past
@@ -90,8 +90,8 @@
   Scene 8   What the server saw — the whole point
 ════════════════════════════════════════════════════════════════════
          res_001       readers=2  len=88  sig=none
-         res_g01       readers=4  len=56  sig=none
-         res_g02       readers=3  len=58  sig=none
+         res_g01       readers=3  len=56  sig=none
+         res_g02       readers=2  len=58  sig=none
          res_post_01   readers=0  len=64  sig=present
 
   [  OK  ] the server knew: who, for whom, when, how big, which domain
