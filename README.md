@@ -75,6 +75,13 @@ cd server && ./.venv/bin/python -m pytest  # 10 tests, includes the zero-crypto 
 
 ## The app — five screens, one envelope
 
+The same page in both languages. The switch in the header rewrites the words and
+mirrors the layout; nothing else moves.
+
+| English | العربية |
+|---|---|
+| ![The login screen in English](docs/img/app-en.png) | ![شاشة الدخول بالعربية](docs/img/app-ar.png) |
+
 | Screen | What you see | What it proves |
 |---|---|---|
 | **Vault** | identity, fingerprint, VK, devices (`cli`, `laptop`, `phone`) | the password opens a key; the key never moves |
@@ -143,7 +150,8 @@ server/                         blind FastAPI server (6 endpoints, SQLite, no cr
 server/tests/test_api.py        the contract + a scan proving zero crypto
 packages/sycore_core/           crypto, envelope, vault, group, jahr (14 tests)
 packages/sycore_client/         the SDK: vault, hosn, samam, jahr, operator
-apps/sycore_app/                the Flutter desktop app (five screens)
+apps/sycore_app/                the Flutter desktop app (five screens, en/ar)
+docs/img/                       the two screenshots above
 examples/client_demo.dart       SDK walkthrough against the live server
 examples/demo.dart              the offline 8-scene proof (no server at all)
 examples/expected-output.txt    a reference run of demo.dart
