@@ -50,11 +50,14 @@ direction. Arabic mirrors the layout properly (`Directionality` + Arabic
 Material localisations), it is not a translation bolted onto a left-to-right
 page. Wire JSON is the one exception: bytes are always shown left to right.
 
-Start in a given language for a rehearsal:
+The choice is remembered between runs in `~/.config/sycore/lang` (honouring
+`XDG_CONFIG_HOME`), so the app opens the way you left it. To pin a language for
+one run — a rehearsal, a screenshot — set `SYCORE_LANG`; it wins over the
+remembered choice:
 
 ```bash
 SYCORE_LANG=ar ./build/linux/x64/release/bundle/sycore_app
-SYCORE_LANG=en ./build/linux/x64/release/bundle/sycore_app   # the default
+SYCORE_LANG=en ./build/linux/x64/release/bundle/sycore_app
 ```
 
 Text lives in one table, [`lib/l10n.dart`](lib/l10n.dart): `Strings(AppLang.ar)`

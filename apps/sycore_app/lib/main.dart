@@ -14,12 +14,41 @@ import 'state.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
+/// Where the chosen language is remembered between runs. A preference, not a
+/// secret, so it lives in the config directory; `SYCORE_HOME` and the vault are
+/// left alone.
+File _langFile() {
+  final base = Platform.environment['XDG_CONFIG_HOME'] ??
+      '${Platform.environment['HOME'] ?? '/tmp'}/.config';
+  return File('$base/sycore/lang');
+}
+
+/// Persist the current language. A read-only home is not a reason to stop.
+void _remember() {
+  try {
+    final f = _langFile();
+    f.parent.createSync(recursive: true);
+    f.writeAsStringSync(appLang.value.name);
+  } catch (_) {}
+}
+
 void main() {
-  // The switch in the header is the real control; this only lets a rehearsal
-  // start in one language:  SYCORE_LANG=ar ./sycore_app
-  if (Platform.environment['SYCORE_LANG'] == 'ar') {
-    appLang.value = AppLang.ar;
+  // Order of precedence: SYCORE_LANG (a rehearsal pins the language), then the
+  // last choice made with the switch in the header, then English.
+  final forced = Platform.environment['SYCORE_LANG'];
+  if (forced == 'ar' || forced == 'en') {
+    appLang.value = forced == 'ar' ? AppLang.ar : AppLang.en;
+  } else {
+    try {
+      if (_langFile().readAsStringSync().trim() == 'ar') {
+        appLang.value = AppLang.ar;
+      }
+    } catch (_) {
+      // No preference yet, or no home directory: English, quietly.
+    }
   }
+  _remember();
+  appLang.addListener(_remember);
   runApp(const SycoreApp());
 }
 

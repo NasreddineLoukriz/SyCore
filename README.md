@@ -48,7 +48,8 @@ cd apps/sycore_app
 flutter run -d linux          # or: flutter build linux --release
 #    → sign in as Ali / Sara / Mona with the demo passphrase
 #    → the switch in the header turns the whole interface Arabic (RTL)
-#      or back; SYCORE_LANG=ar starts in Arabic
+#      or back, and the app remembers the choice; SYCORE_LANG=ar
+#      pins Arabic for one run
 
 # 3 · the SDK walkthrough (optional, but it is the proof without a UI)
 cd examples
